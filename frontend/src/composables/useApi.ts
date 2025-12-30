@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import type { SearchResponse, ImagesResponse } from "../types/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3000";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export function useSearch() {
   const results = ref<SearchResponse | null>(null);
