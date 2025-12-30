@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Image {
+  id        String   @id @default(uuid())
+  filename  String
+  s3Key     String   @unique
+  s3Url     String
+  fileHash  String   @unique
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  metadata ImageMetadata?
+  tags     ImageTag[]
+
+  @@index([filename])
+  @@index([createdAt])
+}
+
+model ImageMetadata {
+  id      String @id @default(uuid())
+  imageId String @unique
+  image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  // Core prompt data
+  prompt     String?
+  seed       BigInt?
+  steps      Int?
+  scale      Float?
+  sampler    String?
+  rawComment String @db.Text
+
+  // V4 prompt data
+  v4BaseCaption  String?
+  v4CharCaptions Json?
+
+  // Negative prompt
+  negativePrompt String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([seed])
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  category  String?
+  createdAt DateTime   @default(now())
+  images    ImageTag[]
+
+  @@index([name])
+  @@index([category])
+}
+
+model ImageTag {
+  imageId String
+  tagId   String
+  image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  // Weight information
+  weight     Float   @default(1.0) // 1.0 = normal, >1 = emphasized, <0 = negative
+  isNegative Boolean @default(false)
+  source     String? // "prompt", "v4_base", "v4_char", "negative"
+
+  @@id([imageId, tagId])
+  @@index([tagId])
+  @@index([weight])
+  @@index([isNegative])
+}
