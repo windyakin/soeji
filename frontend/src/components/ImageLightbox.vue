@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from "vue";
+import { computed, ref, watch, nextTick, onUnmounted } from "vue";
 import Button from "primevue/button";
 import type { SearchHit } from "../types/api";
 
@@ -22,35 +22,61 @@ const overlayRef = ref<HTMLElement | null>(null);
 
 const currentImage = computed(() => props.images[props.currentIndex]);
 
-// Focus the overlay when it becomes visible
+// Lock body scroll when lightbox is visible
 watch(
   () => props.visible,
   async (isVisible) => {
     if (isVisible) {
+      // Prevent body scroll
+      document.body.style.overflow = "hidden";
       await nextTick();
       overlayRef.value?.focus();
+    } else {
+      // Restore body scroll
+      document.body.style.overflow = "";
     }
   }
 );
+
+// Clean up on unmount
+onUnmounted(() => {
+  document.body.style.overflow = "";
+});
 
 const hasPrev = computed(() => props.currentIndex > 0);
 const hasNext = computed(() => props.currentIndex < props.images.length - 1);
 const isAtEnd = computed(() => props.currentIndex === props.images.length - 1);
 const canLoadMore = computed(() => isAtEnd.value && props.hasMore && !props.loadingMore);
 
+// Throttle navigation to prevent double-click issues
+const isNavigating = ref(false);
+const navigationCooldown = 200; // ms
+
 function close() {
   emit("update:visible", false);
 }
 
 function prev() {
-  if (hasPrev.value) {
-    emit("update:currentIndex", props.currentIndex - 1);
-  }
+  if (isNavigating.value || !hasPrev.value) return;
+
+  isNavigating.value = true;
+  emit("update:currentIndex", props.currentIndex - 1);
+
+  setTimeout(() => {
+    isNavigating.value = false;
+  }, navigationCooldown);
 }
 
-async function next() {
+function next() {
+  if (isNavigating.value) return;
+
   if (hasNext.value) {
+    isNavigating.value = true;
     emit("update:currentIndex", props.currentIndex + 1);
+
+    setTimeout(() => {
+      isNavigating.value = false;
+    }, navigationCooldown);
   } else if (canLoadMore.value) {
     // At the last image, try to load more
     emit("loadMore");
@@ -101,6 +127,8 @@ function showInfo() {
         v-if="visible && currentImage"
         class="lightbox-overlay"
         @keydown="handleKeydown"
+        @wheel.prevent
+        @touchmove.prevent
         tabindex="0"
         ref="overlayRef"
       >
