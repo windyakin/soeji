@@ -7,12 +7,15 @@ const props = defineProps<{
   images: SearchHit[];
   currentIndex: number;
   visible: boolean;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }>();
 
 const emit = defineEmits<{
   "update:visible": [value: boolean];
   "update:currentIndex": [value: number];
   showInfo: [image: SearchHit];
+  loadMore: [];
 }>();
 
 const overlayRef = ref<HTMLElement | null>(null);
@@ -32,6 +35,8 @@ watch(
 
 const hasPrev = computed(() => props.currentIndex > 0);
 const hasNext = computed(() => props.currentIndex < props.images.length - 1);
+const isAtEnd = computed(() => props.currentIndex === props.images.length - 1);
+const canLoadMore = computed(() => isAtEnd.value && props.hasMore && !props.loadingMore);
 
 function close() {
   emit("update:visible", false);
@@ -43,11 +48,25 @@ function prev() {
   }
 }
 
-function next() {
+async function next() {
   if (hasNext.value) {
     emit("update:currentIndex", props.currentIndex + 1);
+  } else if (canLoadMore.value) {
+    // At the last image, try to load more
+    emit("loadMore");
   }
 }
+
+// Watch for new images loaded and automatically advance
+watch(
+  () => props.images.length,
+  (newLength, oldLength) => {
+    // If we were at the end and new images were loaded, advance to the next one
+    if (props.visible && isAtEnd.value && newLength > oldLength) {
+      emit("update:currentIndex", props.currentIndex + 1);
+    }
+  }
+);
 
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
@@ -118,10 +137,11 @@ function showInfo() {
 
         <div
           class="nav-area nav-right"
-          :class="{ disabled: !hasNext }"
+          :class="{ disabled: !hasNext && !canLoadMore, loading: loadingMore }"
           @click="(e) => handleNavClick(e, 'right')"
         >
-          <i v-if="hasNext" class="pi pi-chevron-right nav-icon"></i>
+          <i v-if="loadingMore" class="pi pi-spin pi-spinner nav-icon"></i>
+          <i v-else-if="hasNext || canLoadMore" class="pi pi-chevron-right nav-icon"></i>
         </div>
 
         <!-- Image container -->
@@ -137,6 +157,7 @@ function showInfo() {
         <div class="lightbox-footer">
           <span class="image-counter">
             {{ currentIndex + 1 }} / {{ images.length }}
+            <span v-if="hasMore" class="more-indicator">+</span>
           </span>
         </div>
       </div>
@@ -196,6 +217,10 @@ function showInfo() {
   cursor: default;
 }
 
+.nav-area.loading {
+  cursor: wait;
+}
+
 .nav-left {
   left: 0;
   padding-left: 1rem;
@@ -247,6 +272,10 @@ function showInfo() {
 .image-counter {
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.875rem;
+}
+
+.more-indicator {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* Transitions */

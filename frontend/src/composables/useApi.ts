@@ -1,14 +1,24 @@
-import { ref } from "vue";
-import type { SearchResponse, ImagesResponse } from "../types/api";
+import { ref, computed } from "vue";
+import type { SearchResponse, SearchHit } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
-export function useSearch() {
-  const results = ref<SearchResponse | null>(null);
+export function useInfiniteSearch() {
+  const images = ref<SearchHit[]>([]);
+  const totalHits = ref(0);
   const loading = ref(false);
+  const loadingMore = ref(false);
   const error = ref<string | null>(null);
+  const currentQuery = ref("");
+  const limit = 50;
 
-  async function search(query: string, options?: { limit?: number; offset?: number }) {
+  const hasMore = computed(() => images.value.length < totalHits.value);
+
+  async function search(query: string) {
+    // Reset for new search
+    currentQuery.value = query;
+    images.value = [];
+    totalHits.value = 0;
     loading.value = true;
     error.value = null;
 
@@ -17,13 +27,8 @@ export function useSearch() {
       if (query) {
         params.set("q", query);
       }
-      if (options?.limit) {
-        params.set("limit", options.limit.toString());
-      }
-      if (options?.offset) {
-        params.set("offset", options.offset.toString());
-      }
-      // Only search positive tags
+      params.set("limit", limit.toString());
+      params.set("offset", "0");
       params.set("filter", "positiveTags");
 
       const response = await fetch(`${API_BASE}/api/search?${params}`);
@@ -31,7 +36,9 @@ export function useSearch() {
         throw new Error("Search failed");
       }
 
-      results.value = await response.json();
+      const data: SearchResponse = await response.json();
+      images.value = data.hits;
+      totalHits.value = data.totalHits;
     } catch (e) {
       error.value = e instanceof Error ? e.message : "Unknown error";
     } finally {
@@ -39,39 +46,48 @@ export function useSearch() {
     }
   }
 
-  return { results, loading, error, search };
-}
+  async function loadMore(): Promise<boolean> {
+    if (loadingMore.value || !hasMore.value) {
+      return false;
+    }
 
-export function useImages() {
-  const data = ref<ImagesResponse | null>(null);
-  const loading = ref(false);
-  const error = ref<string | null>(null);
-
-  async function fetchImages(options?: { limit?: number; offset?: number }) {
-    loading.value = true;
+    loadingMore.value = true;
     error.value = null;
 
     try {
       const params = new URLSearchParams();
-      if (options?.limit) {
-        params.set("limit", options.limit.toString());
+      if (currentQuery.value) {
+        params.set("q", currentQuery.value);
       }
-      if (options?.offset) {
-        params.set("offset", options.offset.toString());
-      }
+      params.set("limit", limit.toString());
+      params.set("offset", images.value.length.toString());
+      params.set("filter", "positiveTags");
 
-      const response = await fetch(`${API_BASE}/api/images?${params}`);
+      const response = await fetch(`${API_BASE}/api/search?${params}`);
       if (!response.ok) {
-        throw new Error("Failed to fetch images");
+        throw new Error("Failed to load more");
       }
 
-      data.value = await response.json();
+      const data: SearchResponse = await response.json();
+      images.value = [...images.value, ...data.hits];
+      totalHits.value = data.totalHits;
+      return data.hits.length > 0;
     } catch (e) {
       error.value = e instanceof Error ? e.message : "Unknown error";
+      return false;
     } finally {
-      loading.value = false;
+      loadingMore.value = false;
     }
   }
 
-  return { data, loading, error, fetchImages };
+  return {
+    images,
+    totalHits,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    search,
+    loadMore,
+  };
 }

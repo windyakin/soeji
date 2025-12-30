@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import SearchBox from "./components/SearchBox.vue";
 import ImageGrid from "./components/ImageGrid.vue";
 import ImageLightbox from "./components/ImageLightbox.vue";
 import ImageInfoModal from "./components/ImageInfoModal.vue";
-import { useSearch } from "./composables/useApi";
+import { useInfiniteSearch } from "./composables/useApi";
 import type { SearchHit } from "./types/api";
 
 const searchQuery = ref("");
-const { results, loading, search } = useSearch();
-
-const images = ref<SearchHit[]>([]);
+const {
+  images,
+  totalHits,
+  loading,
+  loadingMore,
+  hasMore,
+  search,
+  loadMore,
+} = useInfiniteSearch();
 
 // Lightbox state
 const lightboxVisible = ref(false);
@@ -27,19 +33,31 @@ watch(searchQuery, (newQuery) => {
     clearTimeout(debounceTimer);
   }
   debounceTimer = setTimeout(() => {
-    search(newQuery, { limit: 50 });
+    search(newQuery);
   }, 300);
 });
 
-watch(results, (newResults) => {
-  if (newResults) {
-    images.value = newResults.hits;
-  }
+onMounted(() => {
+  search("");
+  window.addEventListener("scroll", handleScroll);
 });
 
-onMounted(() => {
-  search("", { limit: 50 });
+onUnmounted(() => {
+  window.removeEventListener("scroll", handleScroll);
 });
+
+function handleScroll() {
+  if (loadingMore.value || !hasMore.value) return;
+
+  const scrollTop = window.scrollY;
+  const windowHeight = window.innerHeight;
+  const documentHeight = document.documentElement.scrollHeight;
+
+  // Load more when user scrolls to bottom (with 200px threshold)
+  if (scrollTop + windowHeight >= documentHeight - 200) {
+    loadMore();
+  }
+}
 
 function handleImageSelect(index: number) {
   currentImageIndex.value = index;
@@ -49,6 +67,12 @@ function handleImageSelect(index: number) {
 function handleShowInfo(image: SearchHit) {
   selectedImageForInfo.value = image;
   infoModalVisible.value = true;
+}
+
+async function handleLoadMoreFromLightbox() {
+  if (hasMore.value) {
+    await loadMore();
+  }
 }
 </script>
 
@@ -65,10 +89,21 @@ function handleShowInfo(image: SearchHit) {
       </section>
 
       <section class="results-section">
-        <div v-if="results" class="results-info">
-          <span>{{ results.totalHits }} images found</span>
+        <div class="results-info">
+          <span>{{ totalHits }} images found</span>
         </div>
         <ImageGrid :images="images" :loading="loading" @select="handleImageSelect" />
+
+        <!-- Loading more indicator -->
+        <div v-if="loadingMore" class="loading-more">
+          <i class="pi pi-spin pi-spinner"></i>
+          <span>Loading more...</span>
+        </div>
+
+        <!-- End of results -->
+        <div v-else-if="!hasMore && images.length > 0" class="end-of-results">
+          <span>No more images</span>
+        </div>
       </section>
     </main>
 
@@ -77,7 +112,10 @@ function handleShowInfo(image: SearchHit) {
       v-model:visible="lightboxVisible"
       v-model:currentIndex="currentImageIndex"
       :images="images"
+      :has-more="hasMore"
+      :loading-more="loadingMore"
       @show-info="handleShowInfo"
+      @load-more="handleLoadMoreFromLightbox"
     />
 
     <!-- Info Modal -->
@@ -130,6 +168,22 @@ function handleShowInfo(image: SearchHit) {
 
 .results-info {
   padding: 0.5rem 1rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+}
+
+.loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  color: var(--p-text-muted-color);
+}
+
+.end-of-results {
+  text-align: center;
+  padding: 2rem;
   color: var(--p-text-muted-color);
   font-size: 0.875rem;
 }
