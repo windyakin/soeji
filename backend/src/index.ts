@@ -4,6 +4,7 @@ import cors from "cors";
 import { searchRouter } from "./routes/search.js";
 import { imagesRouter } from "./routes/images.js";
 import { tagsRouter } from "./routes/tags.js";
+import { tagCache } from "./services/tagCache.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +22,16 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+// Initialize cache and start server
+async function start() {
+  await tagCache.initialize();
+
+  app.listen(PORT, () => {
+    console.log(`Backend server running on http://localhost:${PORT}`);
+  });
+}
+
+start().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });

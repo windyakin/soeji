@@ -39,43 +39,27 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Search/suggest tags by query
+// Search/suggest tags by query (uses in-memory cache)
 router.get("/suggest", async (req, res) => {
   try {
-    const { q = "", limit = "20" } = req.query;
-    const query = (q as string).toLowerCase();
+    const { q = "", limit = "10" } = req.query;
+    const query = (q as string).trim();
 
     if (!query) {
       res.json({ tags: [] });
       return;
     }
 
-    const tags = await prisma.tag.findMany({
-      where: {
-        name: {
-          contains: query,
-          mode: "insensitive",
-        },
-      },
-      take: parseInt(limit as string, 10),
-      include: {
-        _count: {
-          select: { images: true },
-        },
-      },
-      orderBy: {
-        images: {
-          _count: "desc",
-        },
-      },
-    });
+    // Use cached tags for fast in-memory search
+    const { tagCache } = await import("../services/tagCache.js");
+    const tags = tagCache.suggest(query, parseInt(limit as string, 10));
 
     res.json({
-      tags: tags.map((tag) => ({
-        id: tag.id,
-        name: tag.name,
-        category: tag.category,
-        imageCount: tag._count.images,
+      tags: tags.map(({ id, name, category, imageCount }) => ({
+        id,
+        name,
+        category,
+        imageCount,
       })),
     });
   } catch (error) {
