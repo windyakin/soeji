@@ -5,6 +5,14 @@ defineProps<{
   images: SearchHit[];
   loading?: boolean;
 }>();
+
+const emit = defineEmits<{
+  select: [index: number];
+}>();
+
+function handleImageClick(index: number) {
+  emit("select", index);
+}
 </script>
 
 <template>
@@ -17,7 +25,12 @@ defineProps<{
   <!-- Show grid with optional loading overlay -->
   <div v-else class="image-grid-container">
     <div class="image-grid" :class="{ 'is-loading': loading }">
-      <div v-for="image in images" :key="image.id" class="image-tile">
+      <div
+        v-for="(image, index) in images"
+        :key="image.id"
+        class="image-tile"
+        @click="handleImageClick(index)"
+      >
         <div class="image-wrapper">
           <img :src="image.s3Url" :alt="image.filename" loading="lazy" />
         </div>

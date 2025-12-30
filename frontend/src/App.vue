@@ -2,6 +2,8 @@
 import { ref, watch, onMounted } from "vue";
 import SearchBox from "./components/SearchBox.vue";
 import ImageGrid from "./components/ImageGrid.vue";
+import ImageLightbox from "./components/ImageLightbox.vue";
+import ImageInfoModal from "./components/ImageInfoModal.vue";
 import { useSearch } from "./composables/useApi";
 import type { SearchHit } from "./types/api";
 
@@ -9,6 +11,14 @@ const searchQuery = ref("");
 const { results, loading, search } = useSearch();
 
 const images = ref<SearchHit[]>([]);
+
+// Lightbox state
+const lightboxVisible = ref(false);
+const currentImageIndex = ref(0);
+
+// Info modal state
+const infoModalVisible = ref(false);
+const selectedImageForInfo = ref<SearchHit | null>(null);
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -30,6 +40,16 @@ watch(results, (newResults) => {
 onMounted(() => {
   search("", { limit: 50 });
 });
+
+function handleImageSelect(index: number) {
+  currentImageIndex.value = index;
+  lightboxVisible.value = true;
+}
+
+function handleShowInfo(image: SearchHit) {
+  selectedImageForInfo.value = image;
+  infoModalVisible.value = true;
+}
 </script>
 
 <template>
@@ -48,9 +68,23 @@ onMounted(() => {
         <div v-if="results" class="results-info">
           <span>{{ results.totalHits }} images found</span>
         </div>
-        <ImageGrid :images="images" :loading="loading" />
+        <ImageGrid :images="images" :loading="loading" @select="handleImageSelect" />
       </section>
     </main>
+
+    <!-- Lightbox -->
+    <ImageLightbox
+      v-model:visible="lightboxVisible"
+      v-model:currentIndex="currentImageIndex"
+      :images="images"
+      @show-info="handleShowInfo"
+    />
+
+    <!-- Info Modal -->
+    <ImageInfoModal
+      v-model:visible="infoModalVisible"
+      :image="selectedImageForInfo"
+    />
   </div>
 </template>
 
