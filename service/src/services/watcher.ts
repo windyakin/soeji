@@ -3,6 +3,70 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import { processImage } from "./imageProcessor.js";
 
+// PNG magic bytes
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * Wait for a file to be completely written by checking:
+ * 1. File size stability
+ * 2. Valid PNG signature
+ */
+async function waitForFileReady(
+  filePath: string,
+  options: { maxWaitMs?: number; checkIntervalMs?: number } = {}
+): Promise<boolean> {
+  const { maxWaitMs = 60000, checkIntervalMs = 500 } = options;
+  const startTime = Date.now();
+  let lastSize = -1;
+  let stableCount = 0;
+  const requiredStableChecks = 3;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        return false;
+      }
+
+      const stats = fs.statSync(filePath);
+      const currentSize = stats.size;
+
+      // Check size stability
+      if (currentSize === lastSize && currentSize > 0) {
+        stableCount++;
+
+        // After size is stable, verify PNG signature
+        if (stableCount >= requiredStableChecks) {
+          const fd = fs.openSync(filePath, "r");
+          try {
+            const buffer = Buffer.alloc(8);
+            const bytesRead = fs.readSync(fd, buffer, 0, 8, 0);
+
+            if (bytesRead === 8 && buffer.equals(PNG_SIGNATURE)) {
+              return true;
+            }
+          } finally {
+            fs.closeSync(fd);
+          }
+          // PNG signature not valid yet, reset stable count
+          stableCount = 0;
+        }
+      } else {
+        stableCount = 0;
+      }
+
+      lastSize = currentSize;
+    } catch {
+      // File might be locked, continue waiting
+      stableCount = 0;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, checkIntervalMs));
+  }
+
+  return false;
+}
+
 export interface WatcherOptions {
   deleteAfterProcess?: boolean;
 }
@@ -63,6 +127,8 @@ class ProcessingQueue {
           }
           if (result.deleted) {
             console.log(`File deleted: ${filename}`);
+            // Remove from processed set so the same path can be processed again
+            this.processedFiles.delete(filePath);
           }
         } else {
           console.error(`Failed to process: ${filename} - ${result.error}`);
@@ -115,10 +181,19 @@ export function startWatcher(watchDir: string, options: WatcherOptions = {}): FS
       return;
     }
 
-    console.log(`New file detected: ${path.basename(filePath)}`);
+    const filename = path.basename(filePath);
+    console.log(`New file detected: ${filename}`);
 
-    // Add a small delay to ensure file is fully written
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Wait for file to be fully written and valid PNG
+    console.log(`Waiting for file transfer to complete: ${filename}`);
+    const isReady = await waitForFileReady(filePath);
+
+    if (!isReady) {
+      console.log(`File not ready or invalid after timeout, skipping: ${filename}`);
+      return;
+    }
+
+    console.log(`File ready: ${filename}`);
 
     // Add to processing queue
     await processingQueue.add(filePath);
