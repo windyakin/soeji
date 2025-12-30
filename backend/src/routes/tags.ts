@@ -39,6 +39,51 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Search/suggest tags by query
+router.get("/suggest", async (req, res) => {
+  try {
+    const { q = "", limit = "20" } = req.query;
+    const query = (q as string).toLowerCase();
+
+    if (!query) {
+      res.json({ tags: [] });
+      return;
+    }
+
+    const tags = await prisma.tag.findMany({
+      where: {
+        name: {
+          contains: query,
+          mode: "insensitive",
+        },
+      },
+      take: parseInt(limit as string, 10),
+      include: {
+        _count: {
+          select: { images: true },
+        },
+      },
+      orderBy: {
+        images: {
+          _count: "desc",
+        },
+      },
+    });
+
+    res.json({
+      tags: tags.map((tag) => ({
+        id: tag.id,
+        name: tag.name,
+        category: tag.category,
+        imageCount: tag._count.images,
+      })),
+    });
+  } catch (error) {
+    console.error("Tag suggest error:", error);
+    res.status(500).json({ error: "Failed to suggest tags" });
+  }
+});
+
 router.get("/categories", async (_req, res) => {
   try {
     const categories = await prisma.tag.groupBy({
