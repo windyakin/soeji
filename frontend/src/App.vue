@@ -78,20 +78,21 @@ async function handleLoadMoreFromLightbox() {
 
 <template>
   <div class="app-container">
+    <!-- Sticky header with search -->
     <header class="app-header">
-      <h1 class="app-title">Soeji</h1>
-      <p class="app-subtitle">Image Search</p>
-    </header>
-
-    <main class="app-main">
-      <section class="search-section">
-        <SearchBox v-model="searchQuery" :loading="loading" />
-      </section>
-
-      <section class="results-section">
+      <div class="header-content">
+        <h1 class="app-title">Soeji</h1>
+        <div class="search-wrapper">
+          <SearchBox v-model="searchQuery" :loading="loading" />
+        </div>
         <div class="results-info">
           <span>{{ totalHits }} images found</span>
         </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="results-section">
         <ImageGrid :images="images" :loading="loading" @select="handleImageSelect" />
 
         <!-- Loading more indicator -->
@@ -129,27 +130,44 @@ async function handleLoadMoreFromLightbox() {
 <style scoped>
 .app-container {
   min-height: 100vh;
-  background: var(--p-surface-ground);
+  background: var(--p-surface-0);
 }
 
 .app-header {
-  text-align: center;
-  padding: 2rem 1rem 1rem;
-  background: var(--p-surface-card);
-  border-bottom: 1px solid var(--p-surface-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--p-surface-0);
+  border-bottom: 1px solid var(--p-surface-200);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.header-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .app-title {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--p-primary-color);
+  white-space: nowrap;
 }
 
-.app-subtitle {
-  margin: 0.25rem 0 0;
-  color: var(--p-text-muted-color);
-  font-size: 0.9rem;
+.search-wrapper {
+  flex: 1;
+  max-width: 600px;
+}
+
+.results-info {
+  color: var(--p-surface-500);
+  font-size: 0.875rem;
+  white-space: nowrap;
 }
 
 .app-main {
@@ -158,18 +176,8 @@ async function handleLoadMoreFromLightbox() {
   padding: 1rem;
 }
 
-.search-section {
-  padding: 1.5rem 0;
-}
-
 .results-section {
-  margin-top: 1rem;
-}
-
-.results-info {
-  padding: 0.5rem 1rem;
-  color: var(--p-text-muted-color);
-  font-size: 0.875rem;
+  margin-top: 0;
 }
 
 .loading-more {
@@ -178,13 +186,34 @@ async function handleLoadMoreFromLightbox() {
   justify-content: center;
   gap: 0.5rem;
   padding: 2rem;
-  color: var(--p-text-muted-color);
+  color: var(--p-surface-500);
 }
 
 .end-of-results {
   text-align: center;
   padding: 2rem;
-  color: var(--p-text-muted-color);
+  color: var(--p-surface-500);
   font-size: 0.875rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .header-content {
+    flex-wrap: wrap;
+  }
+
+  .app-title {
+    font-size: 1.25rem;
+  }
+
+  .search-wrapper {
+    order: 3;
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+
+  .results-info {
+    margin-left: auto;
+  }
 }
 </style>

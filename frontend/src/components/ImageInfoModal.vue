@@ -145,7 +145,7 @@ function close() {
   margin: 0 0 0.5rem 0;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--p-text-muted-color);
+  color: var(--p-surface-500);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -158,7 +158,7 @@ function close() {
 
 .info-label {
   font-weight: 500;
-  color: var(--p-text-muted-color);
+  color: var(--p-surface-500);
 }
 
 .info-value {

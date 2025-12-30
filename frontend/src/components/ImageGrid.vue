@@ -46,7 +46,7 @@ function handleImageClick(index: number) {
   align-items: center;
   justify-content: center;
   padding: 3rem;
-  color: var(--p-text-muted-color);
+  color: var(--p-surface-500);
   gap: 1rem;
 }
 
@@ -58,7 +58,6 @@ function handleImageClick(index: number) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 1rem;
-  padding: 1rem;
   transition: opacity 0.15s ease;
 }
 
