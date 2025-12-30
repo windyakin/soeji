@@ -72,12 +72,118 @@ services:
     image: adminer:latest
     container_name: soeji-adminer
     ports:
-      - "8080:8080"
+      - "8081:8080"
     depends_on:
       postgres:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: soeji-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: service/Dockerfile.migrate
+    container_name: soeji-migrate
+    environment:
+      DATABASE_URL: postgresql://soeji:soeji@postgres:5432/soeji
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: soeji-backend
+    environment:
+      DATABASE_URL: postgresql://soeji:soeji@postgres:5432/soeji
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_API_KEY: masterKey
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_BUCKET: soeji-images
+      PORT: "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  service:
+    build:
+      context: .
+      dockerfile: service/Dockerfile
+    container_name: soeji-service
+    environment:
+      DATABASE_URL: postgresql://soeji:soeji@postgres:5432/soeji
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_API_KEY: masterKey
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: rustfsadmin
+      S3_SECRET_KEY: rustfsadmin
+      S3_ACCESS_KEY_ID: rustfsadmin
+      S3_SECRET_ACCESS_KEY: rustfsadmin
+      S3_BUCKET: soeji-images
+      S3_REGION: us-east-1
+      WATCH_DIR: /data/images
+    volumes:
+      - watch_data:/data/images
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      rustfs-setup:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  samba:
+    image: dperson/samba
+    container_name: soeji-samba
+    environment:
+      TZ: Asia/Tokyo
+      USERID: "1000"
+      GROUPID: "1000"
+    command: >
+      -u "soeji;soeji"
+      -s "images;/data/images;yes;no;no;soeji;soeji"
+      -g "server min protocol = SMB2"
+      -g "server max protocol = SMB3"
+      -g "client min protocol = SMB2"
+      -g "ea support = yes"
+      -g "vfs objects = fruit streams_xattr"
+      -g "fruit:metadata = stream"
+      -g "fruit:model = MacSamba"
+      -g "fruit:posix_rename = yes"
+      -g "fruit:veto_appledouble = no"
+      -g "fruit:wipe_intentionally_left_blank_rfork = yes"
+      -g "fruit:delete_empty_adfiles = yes"
+    ports:
+      - "137:137/udp"
+      - "138:138/udp"
+      - "139:139"
+      - "445:445"
+    volumes:
+      - watch_data:/data/images
+    restart: unless-stopped
+
 volumes:
+  watch_data:
   postgres_data:
   rustfs_data:
   meilisearch_data:

@@ -1,0 +1,21 @@
+# Migration container for Prisma
+FROM node:24-alpine
+
+WORKDIR /app
+
+# Copy root package files for workspaces
+COPY package.json package-lock.json ./
+
+# Copy service package.json
+COPY service/package.json ./service/
+
+# Copy prisma schema
+COPY service/prisma ./service/prisma
+
+# Install dependencies
+RUN npm ci -w @soeji/service
+
+WORKDIR /app/service
+
+# Run db push to sync schema (creates tables if not exist)
+CMD ["npx", "prisma", "db", "push", "--skip-generate"]

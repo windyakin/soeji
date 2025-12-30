@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+**/dist/
+**/.tsbuildinfo
+
+# Development files
+**/.env
+**/.env.local
+**/.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+**/coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Data directories
+data/
