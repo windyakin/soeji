@@ -33,9 +33,9 @@ services:
       - rustfs_data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 5s
+      timeout: 3s
+      retries: 10
       start_period: 40s
 
   rustfs-setup:
