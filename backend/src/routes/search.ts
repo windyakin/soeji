@@ -10,6 +10,14 @@ const client = new MeiliSearch({
 
 const INDEX_NAME = "images";
 
+// S3 URL configuration
+const S3_PUBLIC_ENDPOINT = process.env.S3_PUBLIC_ENDPOINT || "http://localhost:9000";
+const S3_BUCKET = process.env.S3_BUCKET || "soeji-images";
+
+function buildS3Url(s3Key: string): string {
+  return `${S3_PUBLIC_ENDPOINT}/${S3_BUCKET}/${s3Key}`;
+}
+
 /**
  * Parse search query for AND/exclude operators
  * Syntax:
@@ -155,8 +163,14 @@ router.get("/", async (req, res) => {
       hits = hits.slice(offsetNum, offsetNum + limitNum);
     }
 
+    // Add s3Url to each hit based on s3Key
+    const hitsWithUrl = hits.map((hit: Record<string, unknown>) => ({
+      ...hit,
+      s3Url: hit.s3Key ? buildS3Url(hit.s3Key as string) : null,
+    }));
+
     res.json({
-      hits,
+      hits: hitsWithUrl,
       totalHits: parsed.excludeTerms.length > 0 ? hits.length : (result.estimatedTotalHits || 0),
       limit: parseInt(limit as string, 10),
       offset: parseInt(offset as string, 10),

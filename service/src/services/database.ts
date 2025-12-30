@@ -6,7 +6,6 @@ const prisma = new PrismaClient();
 export interface CreateImageInput {
   filename: string;
   s3Key: string;
-  s3Url: string;
   fileHash: string;
   width: number | null;
   height: number | null;
@@ -14,7 +13,7 @@ export interface CreateImageInput {
 }
 
 export async function createImageWithMetadata(input: CreateImageInput) {
-  const { filename, s3Key, s3Url, fileHash, width, height, promptData } = input;
+  const { filename, s3Key, fileHash, width, height, promptData } = input;
 
   return prisma.$transaction(async (tx) => {
     // Create image record
@@ -22,7 +21,6 @@ export async function createImageWithMetadata(input: CreateImageInput) {
       data: {
         filename,
         s3Key,
-        s3Url,
         fileHash,
         width,
         height,

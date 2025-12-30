@@ -82,14 +82,13 @@ export async function processImage(
     const dimensions = getPngDimensions(filePath);
 
     // Upload to S3
-    const { key: s3Key, url: s3Url, hash } = await uploadToS3(filePath);
+    const { key: s3Key, hash } = await uploadToS3(filePath);
     console.log(`Uploaded to S3: ${s3Key}`);
 
     // Save to database
     const image = await createImageWithMetadata({
       filename,
       s3Key,
-      s3Url,
       fileHash: hash,
       width: dimensions?.width ?? promptData.width,
       height: dimensions?.height ?? promptData.height,
@@ -111,7 +110,7 @@ export async function processImage(
     const searchDoc: ImageDocument = {
       id: image.id,
       filename,
-      s3Url,
+      s3Key,
       prompt: promptData.prompt,
       v4BaseCaption: promptData.v4BaseCaption,
       v4CharCaptions: promptData.v4CharCaptions

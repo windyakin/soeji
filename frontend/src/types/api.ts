@@ -62,7 +62,7 @@ export interface Image {
   id: string;
   filename: string;
   s3Key: string;
-  s3Url: string;
+  s3Url: string; // Generated from s3Key by backend
   fileHash: string;
   width: number | null;
   height: number | null;

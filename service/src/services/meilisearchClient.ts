@@ -17,7 +17,7 @@ export interface WeightedTagDocument {
 export interface ImageDocument {
   id: string;
   filename: string;
-  s3Url: string;
+  s3Key: string;
   prompt: string | null;
   v4BaseCaption: string | null;
   v4CharCaptions: string | null;

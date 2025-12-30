@@ -4,6 +4,14 @@ import { PrismaClient } from "@prisma/client";
 const router = Router();
 const prisma = new PrismaClient();
 
+// S3 URL configuration
+const S3_PUBLIC_ENDPOINT = process.env.S3_PUBLIC_ENDPOINT || "http://localhost:9000";
+const S3_BUCKET = process.env.S3_BUCKET || "soeji-images";
+
+function buildS3Url(s3Key: string): string {
+  return `${S3_PUBLIC_ENDPOINT}/${S3_BUCKET}/${s3Key}`;
+}
+
 router.get("/", async (req, res) => {
   try {
     const { limit = "20", offset = "0" } = req.query;
@@ -22,8 +30,14 @@ router.get("/", async (req, res) => {
 
     const total = await prisma.image.count();
 
+    // Add s3Url to each image
+    const imagesWithUrl = images.map((image) => ({
+      ...image,
+      s3Url: buildS3Url(image.s3Key),
+    }));
+
     res.json({
-      images,
+      images: imagesWithUrl,
       total,
       limit: parseInt(limit as string, 10),
       offset: parseInt(offset as string, 10),
@@ -53,7 +67,11 @@ router.get("/:id", async (req, res) => {
       return;
     }
 
-    res.json(image);
+    // Add s3Url to the image
+    res.json({
+      ...image,
+      s3Url: buildS3Url(image.s3Key),
+    });
   } catch (error) {
     console.error("Image fetch error:", error);
     res.status(500).json({ error: "Failed to fetch image" });

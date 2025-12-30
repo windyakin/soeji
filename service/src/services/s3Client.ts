@@ -28,7 +28,7 @@ export function calculateFileHash(filePath: string): string {
 export async function uploadToS3(
   filePath: string,
   key?: string
-): Promise<{ key: string; url: string; hash: string }> {
+): Promise<{ key: string; hash: string }> {
   const fileBuffer = fs.readFileSync(filePath);
   const hash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
   const ext = path.extname(filePath);
@@ -43,10 +43,7 @@ export async function uploadToS3(
     })
   );
 
-  const endpoint = process.env.S3_ENDPOINT || "http://localhost:9000";
-  const url = `${endpoint}/${BUCKET}/${s3Key}`;
-
-  return { key: s3Key, url, hash };
+  return { key: s3Key, hash };
 }
 
 export async function downloadFromS3(key: string): Promise<Buffer> {

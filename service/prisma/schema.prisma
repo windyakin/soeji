@@ -11,7 +11,6 @@ model Image {
   id        String   @id @default(uuid())
   filename  String
   s3Key     String   @unique
-  s3Url     String
   fileHash  String   @unique
   width     Int?
   height    Int?
