@@ -46,6 +46,8 @@ export async function initializeMeilisearch(): Promise<void> {
     "v4BaseCaption",
     "v4CharCaptions",
     "tags",
+    "positiveTags",
+    "negativeTags",
     "filename",
   ]);
 
