@@ -56,8 +56,8 @@ function handleImageClick(index: number) {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, calc(50% - 0.5rem)), 1fr));
+  gap: 0.6rem;
   transition: opacity 0.15s ease;
 }
 
