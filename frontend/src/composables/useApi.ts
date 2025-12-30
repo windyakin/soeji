@@ -12,7 +12,7 @@ export function useInfiniteSearch() {
   const loadingMore = ref(false);
   const error = ref<string | null>(null);
   const currentQuery = ref("");
-  const searchMode = ref<SearchMode>("or");
+  const searchMode = ref<SearchMode>("and");
   const limit = 50;
 
   const hasMore = computed(() => images.value.length < totalHits.value);

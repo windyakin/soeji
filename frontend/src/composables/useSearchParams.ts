@@ -3,7 +3,7 @@ import type { SearchMode } from "./useApi";
 
 export function useSearchParams() {
   const query = ref("");
-  const mode = ref<SearchMode>("or");
+  const mode = ref<SearchMode>("and");
   const isInitialized = ref(false);
 
   // Read URL params on mount
@@ -29,7 +29,7 @@ export function useSearchParams() {
       url.searchParams.delete("q");
     }
 
-    if (newMode !== "or") {
+    if (newMode !== "and") {
       url.searchParams.set("mode", newMode);
     } else {
       url.searchParams.delete("mode");

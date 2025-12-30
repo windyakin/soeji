@@ -9,15 +9,15 @@ import { useTagSuggestions, replaceLastWord } from "../composables/useTagSuggest
 type SearchMode = "or" | "and";
 
 const model = defineModel<string>({ default: "" });
-const searchMode = defineModel<SearchMode>("searchMode", { default: "or" });
+const searchMode = defineModel<SearchMode>("searchMode", { default: "and" });
 
 defineProps<{
   loading?: boolean;
 }>();
 
 const modeOptions = [
-  { label: "OR", value: "or" },
   { label: "AND", value: "and" },
+  { label: "OR", value: "or" },
 ];
 
 // Tag suggestions
