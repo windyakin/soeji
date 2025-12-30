@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import type { SearchHit } from "../types/api";
 
-defineProps<{
+const props = defineProps<{
   images: SearchHit[];
   loading?: boolean;
 }>();
@@ -10,9 +11,121 @@ const emit = defineEmits<{
   select: [index: number];
 }>();
 
+// Virtual scroll state
+const containerRef = ref<HTMLElement | null>(null);
+const visibleRange = ref({ start: 0, end: 50 });
+const tileSize = ref(200); // Approximate tile size
+const columnsCount = ref(5);
+const bufferRows = 3; // Extra rows to render above/below viewport
+
+// Calculate which items should be visible based on scroll position
+function updateVisibleRange() {
+  if (!containerRef.value) return;
+
+  const container = containerRef.value;
+  const rect = container.getBoundingClientRect();
+  const viewportTop = -rect.top;
+  const viewportBottom = viewportTop + window.innerHeight;
+
+  // Calculate row height (tile size + gap)
+  const gap = 10; // 0.6rem ≈ 10px
+  const rowHeight = tileSize.value + gap;
+
+  // Calculate visible rows
+  const startRow = Math.max(0, Math.floor(viewportTop / rowHeight) - bufferRows);
+  const endRow = Math.ceil(viewportBottom / rowHeight) + bufferRows;
+
+  // Convert to item indices
+  const start = startRow * columnsCount.value;
+  const end = Math.min((endRow + 1) * columnsCount.value, props.images.length);
+
+  visibleRange.value = { start, end };
+}
+
+// Calculate number of columns based on container width
+function updateColumnsCount() {
+  if (!containerRef.value) return;
+
+  const containerWidth = containerRef.value.clientWidth;
+  const gap = 10;
+  const minTileWidth = 200;
+
+  // Match the CSS grid calculation
+  columnsCount.value = Math.max(1, Math.floor((containerWidth + gap) / (minTileWidth + gap)));
+  tileSize.value = (containerWidth - (columnsCount.value - 1) * gap) / columnsCount.value;
+
+  updateVisibleRange();
+}
+
+// Check if an item should be rendered
+function isItemVisible(index: number): boolean {
+  return index >= visibleRange.value.start && index < visibleRange.value.end;
+}
+
+// Computed total grid height for proper scrollbar
+const totalRows = computed(() => Math.ceil(props.images.length / columnsCount.value));
+const totalHeight = computed(() => {
+  const gap = 10;
+  return totalRows.value * (tileSize.value + gap) - gap;
+});
+
+// Get item position
+function getItemStyle(index: number) {
+  const gap = 10;
+  const row = Math.floor(index / columnsCount.value);
+  const col = index % columnsCount.value;
+  const top = row * (tileSize.value + gap);
+  const left = col * (tileSize.value + gap);
+
+  return {
+    position: "absolute" as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    width: `${tileSize.value}px`,
+    height: `${tileSize.value}px`,
+  };
+}
+
 function handleImageClick(index: number) {
   emit("select", index);
 }
+
+let scrollHandler: () => void;
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(async () => {
+  scrollHandler = () => {
+    requestAnimationFrame(updateVisibleRange);
+  };
+
+  window.addEventListener("scroll", scrollHandler, { passive: true });
+
+  // Wait for next tick to ensure container has proper dimensions
+  await nextTick();
+
+  // Use ResizeObserver to handle container resize
+  if (containerRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      updateColumnsCount();
+    });
+    resizeObserver.observe(containerRef.value);
+    updateColumnsCount();
+  }
+});
+
+// Re-calculate when images change
+watch(() => props.images.length, () => {
+  nextTick(() => {
+    updateColumnsCount();
+  });
+});
+
+onUnmounted(() => {
+  window.removeEventListener("scroll", scrollHandler);
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+  }
+});
 </script>
 
 <template>
@@ -22,19 +135,26 @@ function handleImageClick(index: number) {
     <p>No images found</p>
   </div>
 
-  <!-- Show grid with optional loading overlay -->
+  <!-- Show virtual grid with optional loading overlay -->
   <div v-else class="image-grid-container">
-    <div class="image-grid" :class="{ 'is-loading': loading }">
-      <div
-        v-for="(image, index) in images"
-        :key="image.id"
-        class="image-tile"
-        @click="handleImageClick(index)"
-      >
-        <div class="image-wrapper">
-          <img :src="image.s3Url" :alt="image.filename" loading="lazy" />
+    <div
+      ref="containerRef"
+      class="image-grid"
+      :class="{ 'is-loading': loading }"
+      :style="{ height: `${totalHeight}px` }"
+    >
+      <template v-for="(image, index) in images" :key="image.id">
+        <div
+          v-if="isItemVisible(index)"
+          class="image-tile"
+          :style="getItemStyle(index)"
+          @click="handleImageClick(index)"
+        >
+          <div class="image-wrapper">
+            <img :src="image.s3Url" :alt="image.filename" loading="lazy" />
+          </div>
         </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
@@ -52,12 +172,12 @@ function handleImageClick(index: number) {
 
 .image-grid-container {
   position: relative;
+  width: 100%;
 }
 
 .image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(200px, calc(50% - 0.5rem)), 1fr));
-  gap: 0.6rem;
+  position: relative;
+  width: 100%;
   transition: opacity 0.15s ease;
 }
 
@@ -67,7 +187,6 @@ function handleImageClick(index: number) {
 }
 
 .image-tile {
-  aspect-ratio: 1 / 1;
   overflow: hidden;
   border-radius: 8px;
   background: var(--p-surface-100);
@@ -78,6 +197,7 @@ function handleImageClick(index: number) {
 .image-tile:hover {
   transform: scale(1.02);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1;
 }
 
 .image-wrapper {
