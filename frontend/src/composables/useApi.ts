@@ -3,6 +3,8 @@ import type { SearchResponse, SearchHit } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
+export type SearchMode = "or" | "and";
+
 export function useInfiniteSearch() {
   const images = ref<SearchHit[]>([]);
   const totalHits = ref(0);
@@ -10,15 +12,18 @@ export function useInfiniteSearch() {
   const loadingMore = ref(false);
   const error = ref<string | null>(null);
   const currentQuery = ref("");
+  const searchMode = ref<SearchMode>("or");
   const limit = 50;
 
   const hasMore = computed(() => images.value.length < totalHits.value);
 
-  async function search(query: string) {
-    // Reset for new search
+  async function search(query: string, mode?: SearchMode) {
+    // Update query and mode
     currentQuery.value = query;
-    images.value = [];
-    totalHits.value = 0;
+    if (mode !== undefined) {
+      searchMode.value = mode;
+    }
+    // Keep previous results while loading (don't reset images/totalHits)
     loading.value = true;
     error.value = null;
 
@@ -30,6 +35,7 @@ export function useInfiniteSearch() {
       params.set("limit", limit.toString());
       params.set("offset", "0");
       params.set("filter", "positiveTags");
+      params.set("mode", searchMode.value);
 
       const response = await fetch(`${API_BASE}/api/search?${params}`);
       if (!response.ok) {
@@ -37,6 +43,7 @@ export function useInfiniteSearch() {
       }
 
       const data: SearchResponse = await response.json();
+      // Update results only after successful fetch
       images.value = data.hits;
       totalHits.value = data.totalHits;
     } catch (e) {
@@ -62,6 +69,7 @@ export function useInfiniteSearch() {
       params.set("limit", limit.toString());
       params.set("offset", images.value.length.toString());
       params.set("filter", "positiveTags");
+      params.set("mode", searchMode.value);
 
       const response = await fetch(`${API_BASE}/api/search?${params}`);
       if (!response.ok) {
@@ -80,6 +88,10 @@ export function useInfiniteSearch() {
     }
   }
 
+  function setSearchMode(mode: SearchMode) {
+    searchMode.value = mode;
+  }
+
   return {
     images,
     totalHits,
@@ -87,7 +99,9 @@ export function useInfiniteSearch() {
     loadingMore,
     error,
     hasMore,
+    searchMode,
     search,
     loadMore,
+    setSearchMode,
   };
 }

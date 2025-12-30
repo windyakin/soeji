@@ -2,25 +2,45 @@
 import InputText from "primevue/inputtext";
 import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
+import SelectButton from "primevue/selectbutton";
+
+type SearchMode = "or" | "and";
 
 const model = defineModel<string>({ default: "" });
+const searchMode = defineModel<SearchMode>("searchMode", { default: "or" });
 
 defineProps<{
   loading?: boolean;
 }>();
+
+const modeOptions = [
+  { label: "OR", value: "or" },
+  { label: "AND", value: "and" },
+];
 </script>
 
 <template>
   <div class="search-box">
-    <IconField>
-      <InputIcon class="pi pi-search" />
-      <InputText
-        v-model="model"
-        placeholder="Search images by tags or prompt..."
-        class="search-input"
+    <div class="search-row">
+      <IconField class="search-field">
+        <InputIcon class="pi pi-search" />
+        <InputText
+          v-model="model"
+          placeholder="Search... (use -word to exclude)"
+          class="search-input"
+        />
+        <InputIcon v-show="loading" class="pi pi-spin pi-spinner loading-icon" />
+      </IconField>
+      <SelectButton
+        v-model="searchMode"
+        :options="modeOptions"
+        optionLabel="label"
+        optionValue="value"
+        :allowEmpty="false"
+        class="mode-toggle"
+        size="small"
       />
-      <InputIcon v-show="loading" class="pi pi-spin pi-spinner loading-icon" />
-    </IconField>
+    </div>
   </div>
 </template>
 
@@ -29,6 +49,16 @@ defineProps<{
   width: 100%;
   max-width: 600px;
   margin: 0 auto;
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.search-field {
+  flex: 1;
 }
 
 .search-input {
@@ -44,7 +74,16 @@ defineProps<{
   transform: translateY(-50%);
 }
 
+.mode-toggle {
+  flex-shrink: 0;
+}
+
 :deep(.p-inputtext) {
   width: 100%;
+}
+
+:deep(.p-selectbutton .p-togglebutton) {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
 }
 </style>

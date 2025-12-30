@@ -5,9 +5,12 @@ import ImageGrid from "./components/ImageGrid.vue";
 import ImageLightbox from "./components/ImageLightbox.vue";
 import ImageInfoModal from "./components/ImageInfoModal.vue";
 import { useInfiniteSearch } from "./composables/useApi";
+import { useSearchParams } from "./composables/useSearchParams";
 import type { SearchHit } from "./types/api";
 
-const searchQuery = ref("");
+// URL-synced search params
+const { query: searchQuery, mode: searchMode, isInitialized } = useSearchParams();
+
 const {
   images,
   totalHits,
@@ -28,17 +31,26 @@ const selectedImageForInfo = ref<SearchHit | null>(null);
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-watch(searchQuery, (newQuery) => {
+// Watch for search param changes and trigger search
+watch([searchQuery, searchMode], ([newQuery, newMode]) => {
+  if (!isInitialized.value) return;
+
   if (debounceTimer) {
     clearTimeout(debounceTimer);
   }
   debounceTimer = setTimeout(() => {
-    search(newQuery);
+    search(newQuery, newMode);
   }, 300);
 });
 
+// Initial search when params are ready
+watch(isInitialized, (initialized) => {
+  if (initialized) {
+    search(searchQuery.value, searchMode.value);
+  }
+});
+
 onMounted(() => {
-  search("");
   window.addEventListener("scroll", handleScroll);
 });
 
@@ -83,7 +95,7 @@ async function handleLoadMoreFromLightbox() {
       <div class="header-content">
         <h1 class="app-title">Soeji</h1>
         <div class="search-wrapper">
-          <SearchBox v-model="searchQuery" :loading="loading" />
+          <SearchBox v-model="searchQuery" v-model:searchMode="searchMode" :loading="loading" />
         </div>
         <div class="results-info">
           <span>{{ totalHits }} images found</span>
