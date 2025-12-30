@@ -93,7 +93,7 @@ async function handleLoadMoreFromLightbox() {
     <!-- Sticky header with search -->
     <header class="app-header">
       <div class="header-content">
-        <h1 class="app-title">Soeji</h1>
+        <a href="/" class="app-title-link"><h1 class="app-title">Soeji</h1></a>
         <div class="search-wrapper">
           <SearchBox v-model="searchQuery" v-model:searchMode="searchMode" :loading="loading" />
         </div>
@@ -157,10 +157,14 @@ async function handleLoadMoreFromLightbox() {
 .header-content {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: 1rem 0.65rem;
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.app-title-link {
+  text-decoration: none;
 }
 
 .app-title {
@@ -185,7 +189,7 @@ async function handleLoadMoreFromLightbox() {
 .app-main {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: 1rem 0.65rem;
 }
 
 .results-section {
