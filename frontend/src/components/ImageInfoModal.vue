@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Dialog from "primevue/dialog";
-import Button from "primevue/button";
 import Tag from "primevue/tag";
 import type { SearchHit } from "../types/api";
 
@@ -12,6 +11,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:visible": [value: boolean];
+  searchTag: [tag: string];
 }>();
 
 const dialogVisible = computed({
@@ -25,6 +25,11 @@ function formatDate(timestamp: number): string {
 
 function close() {
   emit("update:visible", false);
+}
+
+function handleTagClick(tag: string) {
+  emit("searchTag", tag);
+  close();
 }
 </script>
 
@@ -86,7 +91,8 @@ function close() {
             :key="tag"
             :value="tag"
             severity="success"
-            class="tag-item"
+            class="tag-item clickable"
+            @click="handleTagClick(tag)"
           />
         </div>
       </div>
@@ -113,12 +119,6 @@ function close() {
         </a>
       </div>
     </div>
-
-    <template #footer>
-      <div class="dialog-footer">
-        <Button label="Close" severity="secondary" @click="close" />
-      </div>
-    </template>
   </Dialog>
 </template>
 
@@ -185,6 +185,16 @@ function close() {
 
 .tag-item {
   font-size: 0.75rem;
+}
+
+.tag-item.clickable {
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.1s;
+}
+
+.tag-item.clickable:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
 }
 
 .url-link {

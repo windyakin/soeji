@@ -86,6 +86,14 @@ async function handleLoadMoreFromLightbox() {
     await loadMore();
   }
 }
+
+function handleSearchTag(tag: string) {
+  // Quote tag if it contains spaces
+  const formattedTag = tag.includes(" ") ? `"${tag}"` : tag;
+  searchQuery.value = formattedTag;
+  // Close lightbox if open
+  lightboxVisible.value = false;
+}
 </script>
 
 <template>
@@ -135,6 +143,7 @@ async function handleLoadMoreFromLightbox() {
     <ImageInfoModal
       v-model:visible="infoModalVisible"
       :image="selectedImageForInfo"
+      @search-tag="handleSearchTag"
     />
   </div>
 </template>
