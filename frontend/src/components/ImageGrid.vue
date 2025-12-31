@@ -52,7 +52,8 @@ function updateColumnsCount() {
 
   const containerWidth = containerRef.value.clientWidth;
   const gap = 10;
-  const minTileWidth = 200;
+  // スマホ（幅480px以下）では150px、それ以外では200pxを使用
+  const minTileWidth = containerWidth <= 480 ? 150 : 200;
 
   // Match the CSS grid calculation
   columnsCount.value = Math.max(1, Math.floor((containerWidth + gap) / (minTileWidth + gap)));
