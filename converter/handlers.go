@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type AppState struct {
@@ -89,7 +90,9 @@ func (s *AppState) ImageHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch image from S3
 	log.Printf("Fetching image from S3: bucket=%s, key=%s", bucket, key)
+	originFetchStart := time.Now()
 	data, err := s.S3Client.GetObject(ctx, bucket, key)
+	originFetchDuration := time.Since(originFetchStart)
 	if err != nil {
 		if _, ok := err.(*NotFoundError); ok {
 			http.Error(w, "Image not found", http.StatusNotFound)
@@ -124,6 +127,7 @@ func (s *AppState) ImageHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", result.ContentType)
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	w.Header().Set("Vary", "Accept")
+	w.Header().Set("X-Origin-Fetch-Time", fmt.Sprintf("%.2fms", float64(originFetchDuration.Microseconds())/1000.0))
 	w.WriteHeader(http.StatusOK)
 	w.Write(result.Data)
 }
