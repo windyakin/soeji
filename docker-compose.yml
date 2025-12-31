@@ -52,6 +52,29 @@ services:
       exit 0;
       "
 
+  converter:
+    build:
+      context: .
+      dockerfile: converter/Dockerfile
+    container_name: soeji-converter
+    ports:
+      - "8000:8000"
+    environment:
+      CONVERTER_PORT: "8000"
+      S3_REGION: us-east-1
+      WEBP_DEFAULT_QUALITY: "85"
+      MAX_DIMENSION: "4096"
+      RUST_LOG: soeji_converter=info,tower_http=info
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
   meilisearch:
     image: getmeili/meilisearch:v1.11
     container_name: soeji-meilisearch
