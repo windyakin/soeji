@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import type { SearchHit } from "../types/api";
+import { getThumbnailUrl } from "../utils/image";
 
 const props = defineProps<{
   images: SearchHit[];
@@ -17,6 +18,9 @@ const visibleRange = ref({ start: 0, end: 50 });
 const tileSize = ref(200); // Approximate tile size
 const columnsCount = ref(5);
 const bufferRows = 3; // Extra rows to render above/below viewport
+
+// サムネイルサイズ（固定値でキャッシュ効率を上げる）
+const THUMBNAIL_SIZE = 400; // minTileWidth(200) * 2 for Retina
 
 // Calculate which items should be visible based on scroll position
 function updateVisibleRange() {
@@ -151,7 +155,7 @@ onUnmounted(() => {
           @click="handleImageClick(index)"
         >
           <div class="image-wrapper">
-            <img :src="image.s3Url" :alt="image.filename" loading="lazy" />
+            <img :src="getThumbnailUrl(image.s3Url, { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE, fit: 'cover' })" :alt="image.filename" loading="lazy" />
           </div>
         </div>
       </template>
