@@ -14,6 +14,9 @@ NAI で作った PNG画像のメタデータを解析し、検索可能なライ
 - 画像のS3互換ストレージへの保存
 - ファイル監視による自動登録
 - Samba経由でのファイル共有
+- PNG→WebP自動変換（Accept: image/webp対応）
+- サムネイル生成（リサイズ・クロップ）
+- CDNキャッシュによる高速配信
 
 ### コンポーネント
 
@@ -25,6 +28,8 @@ NAI で作った PNG画像のメタデータを解析し、検索可能なライ
 | **postgres** | メインデータベース / 画像情報、タグ、メタデータを保存 |
 | **meilisearch** | 全文検索エンジン / タグやプロンプトでの高速検索を提供 |
 | **rustfs** | S3互換オブジェクトストレージ / 画像ファイルを保存 |
+| **cdn** | Nginx CDN / 画像キャッシュ・配信最適化 |
+| **converter** | Rust製画像変換 / PNG→WebP変換・サムネイル生成 |
 | **samba** | ファイル共有 / watchディレクトリをネットワーク共有 |
 | **migrate** | DBマイグレーション専用コンテナ / 起動時にスキーマを同期 |
 
@@ -54,6 +59,7 @@ docker compose logs -f
 | Meilisearch | http://localhost:7700 |
 | S3 (rustfs) | http://localhost:9000 |
 | S3 Console | http://localhost:9001 |
+| CDN（画像配信） | http://localhost:9080 |
 | Adminer (DB管理) | http://localhost:8081 |
 | Samba | smb://localhost/images |
 
@@ -86,7 +92,7 @@ docker compose logs -f
 npm install
 
 # インフラのみ起動
-docker compose up -d postgres meilisearch rustfs rustfs-setup
+docker compose up -d postgres meilisearch rustfs rustfs-setup cdn samba converter adminer
 
 # DBスキーマの同期
 npm run db:push -w @soeji/service
@@ -103,14 +109,10 @@ soeji/
 ├── backend/           # Express API
 ├── service/           # ファイル監視・処理サービス
 │   ├── prisma/        # Prismaスキーマ
-│   └── src/
-│       └── services/
-│           ├── watcher.ts       # ファイル監視
-│           ├── imageProcessor.ts # 画像処理
-│           ├── pngReader.ts     # PNGメタデータ解析
-│           ├── s3Client.ts      # S3操作
-│           ├── database.ts      # DB操作
-│           └── meilisearchClient.ts # 検索インデックス
+│   └── src/services/  # 主要なサービスロジック
+├── converter/         # Rust製画像変換サービス
+│   └── src/           # Axum HTTPサーバー
+├── cdn/               # Nginx CDN設定
 └── docker-compose.yml
 ```
 
@@ -138,9 +140,56 @@ soeji/
 | `MEILISEARCH_HOST` | `http://localhost:7700` | MeilisearchホストURL |
 | `MEILISEARCH_API_KEY` | - | Meilisearch APIキー |
 | `S3_ENDPOINT` | `http://localhost:9000` | S3エンドポイント（内部用） |
-| `S3_PUBLIC_ENDPOINT` | `http://localhost:9000` | S3公開エンドポイント（ブラウザから見るときのURL） |
+| `S3_PUBLIC_ENDPOINT` | `http://localhost:9080` | S3公開エンドポイント（CDN経由推奨） |
 | `S3_BUCKET` | `soeji-images` | S3バケット名 |
 | `PORT` | `3000` | APIサーバーポート |
+
+### converter
+
+| 変数 | デフォルト | 説明 |
+|-----|-----------|------|
+| `CONVERTER_PORT` | `8000` | converterのリッスンポート |
+| `S3_ENDPOINT` | `http://rustfs:9000` | S3エンドポイント |
+| `S3_ACCESS_KEY` | `rustfsadmin` | S3アクセスキー |
+| `S3_SECRET_KEY` | `rustfsadmin` | S3シークレットキー |
+| `WEBP_DEFAULT_QUALITY` | `85` | WebPデフォルト品質 |
+| `MAX_DIMENSION` | `4096` | 最大出力サイズ（px） |
+
+## 画像配信
+
+CDN（nginx）とconverter（Rust）により、画像は自動的に最適化されて配信されます。
+
+### 配信フロー
+
+```
+[Browser] → [cdn:9080] → [converter:8000] → [rustfs:9000]
+              ↓ (キャッシュ)
+           [nginx cache]
+```
+
+1. ブラウザがCDN経由で画像をリクエスト
+2. CDNキャッシュにヒットすれば即座に返却
+3. キャッシュミス時はconverterにプロキシ
+4. converterがrustfsから画像を取得し変換
+5. CDNがレスポンスをキャッシュ
+
+### サムネイル生成
+
+```
+GET http://localhost:9080/soeji-images/{hash}.png?w=400&h=400&fit=cover
+```
+
+| パラメータ | 型 | 説明 | デフォルト |
+|-----------|-----|------|-----------|
+| `w` | integer | 出力幅（1-4096） | オリジナル |
+| `h` | integer | 出力高さ（1-4096） | オリジナル |
+| `q` | integer | WebP品質（1-100） | 85 |
+| `fit` | string | cover / contain / fill | cover |
+
+### WebP自動変換
+
+`Accept: image/webp` ヘッダを含むリクエストに対して、自動的にWebP形式で返却します。
+モダンブラウザでは自動的にWebPが配信され、帯域を削減できます。
 
 ## API
 

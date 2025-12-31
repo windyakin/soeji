@@ -20,12 +20,12 @@ services:
     image: rustfs/rustfs:latest
     container_name: soeji-rustfs
     environment:
-      RUSTFS_VOLUMES: /data
-      RUSTFS_ADDRESS: "0.0.0.0:9000"
-      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
-      RUSTFS_CONSOLE_ENABLE: "true"
-      RUSTFS_ACCESS_KEY: rustfsadmin
-      RUSTFS_SECRET_KEY: rustfsadmin
+      - RUSTFS_VOLUMES
+      - RUSTFS_ADDRESS
+      - RUSTFS_CONSOLE_ADDRESS
+      - RUSTFS_CONSOLE_ENABLE
+      - RUSTFS_ACCESS_KEY
+      - RUSTFS_SECRET_KEY
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -60,11 +60,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      CONVERTER_PORT: "8000"
-      S3_REGION: us-east-1
-      WEBP_DEFAULT_QUALITY: "85"
-      MAX_DIMENSION: "4096"
-      RUST_LOG: soeji_converter=info,tower_http=info
+      - CONVERTER_PORT
+      - S3_ENDPOINT
+      - S3_ACCESS_KEY
+      - S3_SECRET_KEY
+      - S3_REGION
+      - WEBP_DEFAULT_QUALITY
+      - MAX_DIMENSION
+      - RUST_LOG
     depends_on:
       rustfs:
         condition: service_healthy
@@ -147,12 +150,12 @@ services:
       dockerfile: backend/Dockerfile
     container_name: soeji-backend
     environment:
-      DATABASE_URL: postgresql://soeji:soeji@postgres:5432/soeji
-      MEILISEARCH_HOST: http://meilisearch:7700
-      MEILISEARCH_API_KEY: masterKey
-      S3_PUBLIC_ENDPOINT: http://localhost:9000
-      S3_BUCKET: soeji-images
-      PORT: "3000"
+      - DATABASE_URL
+      - MEILISEARCH_HOST
+      - MEILISEARCH_API_KEY
+      - S3_PUBLIC_ENDPOINT
+      - S3_BUCKET
+      - PORT=3000
     depends_on:
       postgres:
         condition: service_healthy
@@ -160,6 +163,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      cdn:
+        condition: service_healthy
     restart: unless-stopped
 
   service:
@@ -168,18 +173,17 @@ services:
       dockerfile: service/Dockerfile
     container_name: soeji-service
     environment:
-      DATABASE_URL: postgresql://soeji:soeji@postgres:5432/soeji
-      MEILISEARCH_HOST: http://meilisearch:7700
-      MEILISEARCH_API_KEY: masterKey
-      S3_ENDPOINT: http://rustfs:9000
-      S3_PUBLIC_ENDPOINT: http://localhost:9000
-      S3_ACCESS_KEY: rustfsadmin
-      S3_SECRET_KEY: rustfsadmin
-      S3_ACCESS_KEY_ID: rustfsadmin
-      S3_SECRET_ACCESS_KEY: rustfsadmin
-      S3_BUCKET: soeji-images
-      S3_REGION: us-east-1
-      WATCH_DIR: /data/images
+      - DATABASE_URL
+      - MEILISEARCH_HOST
+      - MEILISEARCH_API_KEY
+      - S3_ENDPOINT
+      - S3_PUBLIC_ENDPOINT
+      - S3_ACCESS_KEY
+      - S3_SECRET_KEY
+      - S3_BUCKET
+      - S3_REGION
+      - DELETE_AFTER_PROCESS=true
+      - WATCH_DIR=/data/images
     volumes:
       - watch_data:/data/images
     depends_on:
@@ -228,3 +232,4 @@ volumes:
   postgres_data:
   rustfs_data:
   meilisearch_data:
+  cdn_cache:
