@@ -15,7 +15,9 @@ type AppState struct {
 
 func (s *AppState) RootHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
+		w.Header().Set("Cache-Control", "public, no-store")
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Image Converter Service is running.\n"))
 		return
 	}
 	http.NotFound(w, r)
