@@ -118,7 +118,7 @@ function selectSuggestion(index: number) {
           <InputIcon class="pi pi-search" />
           <InputText
             v-model="model"
-            placeholder="Search... (use -word to exclude)"
+            placeholder="Search"
             class="search-input"
             @focus="handleFocus"
             @blur="handleBlur"
