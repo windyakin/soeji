@@ -1,23 +1,28 @@
 # Build stage
-FROM rust:1.92-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
-RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static
+RUN apk add --no-cache git gcc musl-dev
 
 WORKDIR /app
 
-# Copy manifests and source
-COPY converter/Cargo.toml ./
-COPY converter/src ./src
+# Copy go mod files
+COPY converter/go.mod converter/go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY converter/*.go ./
 
 # Build for release
-RUN cargo build --release
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o soeji-converter .
 
 # Runtime stage
 FROM alpine:3.21
 
 RUN apk add --no-cache ca-certificates curl
 
-COPY --from=builder /app/target/release/soeji-converter /usr/local/bin/
+COPY --from=builder /app/soeji-converter /usr/local/bin/
 
 EXPOSE 8000
 
