@@ -569,6 +569,7 @@ function handleTouchEnd(e: TouchEvent) {
   left: 0;
   right: 0;
   padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   text-align: center;
 }
 
