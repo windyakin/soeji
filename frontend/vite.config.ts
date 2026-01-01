@@ -56,15 +56,14 @@ export default defineConfig({
           },
           {
             urlPattern: /\/api\/.*/,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "api-cache",
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 5,
-              },
-            },
+            handler: "NetworkOnly",
+          },
+          {
+            // Custom handler for image downloads to always fetch from network
+            urlPattern: ({ url }) =>
+              url.pathname.includes("/images/") &&
+              url.searchParams.get("download") === "1",
+            handler: "NetworkOnly",
           },
         ],
       },
