@@ -206,6 +206,7 @@ function handleEnterFullscreen() {
           :loading="loading"
           :selected-ids="selectedIds"
           :selection-mode="isSelectionMode"
+          :disabled="taggingLoading"
           @select="handleImageSelect"
           @longpress="handleImageLongPress"
         />

@@ -8,6 +8,7 @@ const props = defineProps<{
   loading?: boolean;
   selectedIds?: Set<string>;
   selectionMode?: boolean;
+  disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -113,6 +114,7 @@ function getItemStyle(index: number) {
 }
 
 function handleImageClick(index: number, event: MouseEvent) {
+  if (props.disabled) return;
   emit("select", index, event);
 }
 
@@ -125,6 +127,7 @@ let isLongPressing = false;
 
 // Touch event handlers for long press
 function handleTouchStart(index: number, event: TouchEvent) {
+  if (props.disabled) return;
   longPressTriggered = false;
   isLongPressing = true;
   const touch = event.touches[0];
@@ -234,7 +237,7 @@ onUnmounted(() => {
         <div
           v-if="isItemVisible(index)"
           class="image-tile"
-          :class="{ 'is-selected': isSelected(image.id), 'selection-mode': selectionMode }"
+          :class="{ 'is-selected': isSelected(image.id), 'selection-mode': selectionMode, 'is-disabled': disabled }"
           :style="getItemStyle(index)"
           @click="handleImageClick(index, $event)"
           @touchstart="handleTouchStart(index, $event)"
@@ -363,5 +366,10 @@ onUnmounted(() => {
 
 .image-tile.selection-mode {
   cursor: pointer;
+}
+
+.image-tile.is-disabled {
+  pointer-events: none;
+  opacity: 0.7;
 }
 </style>
