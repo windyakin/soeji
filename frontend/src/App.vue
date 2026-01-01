@@ -5,6 +5,7 @@ import ImageGrid from "./components/ImageGrid.vue";
 import ImageLightbox from "./components/ImageLightbox.vue";
 import ImageInfoModal from "./components/ImageInfoModal.vue";
 import TaggingPanel from "./components/TaggingPanel.vue";
+import PwaUpdatePrompt from "./components/PwaUpdatePrompt.vue";
 import { useInfiniteSearch, addTagsToImages } from "./composables/useApi";
 import { useSearchParams } from "./composables/useSearchParams";
 import { useImageSelection } from "./composables/useImageSelection";
@@ -225,6 +226,9 @@ function handleImageDeleted(imageId: string) {
       @add-tag="handleAddTag"
       @clear-selection="clearSelection"
     />
+
+    <!-- PWA Update Prompt -->
+    <PwaUpdatePrompt />
   </div>
 </template>
 
