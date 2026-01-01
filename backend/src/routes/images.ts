@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { MeiliSearch } from "meilisearch";
+import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { tagCache } from "../services/tagCache.js";
 
 const router = Router();
@@ -10,6 +11,17 @@ const prisma = new PrismaClient();
 const meilisearchClient = new MeiliSearch({
   host: process.env.MEILISEARCH_HOST || "http://localhost:7700",
   apiKey: process.env.MEILISEARCH_API_KEY || "masterKey",
+});
+
+// S3 client
+const s3Client = new S3Client({
+  endpoint: process.env.S3_ENDPOINT || "http://localhost:9000",
+  region: process.env.S3_REGION || "us-east-1",
+  credentials: {
+    accessKeyId: process.env.S3_ACCESS_KEY || "minioadmin",
+    secretAccessKey: process.env.S3_SECRET_KEY || "minioadmin",
+  },
+  forcePathStyle: true,
 });
 
 // S3 URL configuration
@@ -241,6 +253,56 @@ router.delete("/:imageId/tags/:tagId", async (req, res) => {
   } catch (error) {
     console.error("Delete tag error:", error);
     res.status(500).json({ error: "Failed to delete tag" });
+  }
+});
+
+// DELETE /api/images/:id - Delete an image
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Get image info first (before deleting from DB)
+    const image = await prisma.image.findUnique({
+      where: { id },
+      select: { s3Key: true },
+    });
+
+    // Delete from S3 (ignore errors - file may not exist)
+    if (image?.s3Key) {
+      try {
+        await s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: image.s3Key,
+          })
+        );
+      } catch (s3Error) {
+        console.warn(`S3 delete failed for ${image.s3Key}:`, s3Error);
+      }
+    }
+
+    // Delete from Meilisearch (ignore errors - document may not exist)
+    try {
+      const index = meilisearchClient.index("images");
+      await index.deleteDocument(id);
+    } catch (meilisearchError) {
+      console.warn(`Meilisearch delete failed for ${id}:`, meilisearchError);
+    }
+
+    // Delete from DB (cascades to ImageMetadata and ImageTag)
+    if (image) {
+      await prisma.image.delete({
+        where: { id },
+      });
+    }
+
+    // Trigger tag cache refresh
+    await tagCache.refresh();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Delete image error:", error);
+    res.status(500).json({ error: "Failed to delete image" });
   }
 });
 

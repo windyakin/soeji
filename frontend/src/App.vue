@@ -149,6 +149,13 @@ function handleImageLongPress(index: number) {
     selectedIds.value = newSelectedIds;
   }
 }
+
+function handleImageDeleted(imageId: string) {
+  // Remove the deleted image from the list
+  images.value = images.value.filter((img) => img.id !== imageId);
+  // Also update totalHits
+  totalHits.value = Math.max(0, totalHits.value - 1);
+}
 </script>
 
 <template>
@@ -206,6 +213,7 @@ function handleImageLongPress(index: number) {
       v-model:visible="infoModalVisible"
       :image="selectedImageForInfo"
       @search-tag="handleSearchTag"
+      @deleted="handleImageDeleted"
     />
 
     <!-- Tagging Panel -->

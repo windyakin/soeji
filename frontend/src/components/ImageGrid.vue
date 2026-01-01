@@ -32,6 +32,17 @@ const bufferRows = 3; // Extra rows to render above/below viewport
 // サムネイルサイズ（固定値でキャッシュ効率を上げる）
 const THUMBNAIL_SIZE = 400; // minTileWidth(200) * 2 for Retina
 
+// 画像読み込み状態を管理（読み込み完了した画像のIDを保持）
+const loadedImages = ref<Set<string>>(new Set());
+
+function handleImageLoaded(imageId: string) {
+  loadedImages.value.add(imageId);
+}
+
+function isImageLoading(imageId: string): boolean {
+  return !loadedImages.value.has(imageId);
+}
+
 // Calculate which items should be visible based on scroll position
 function updateVisibleRange() {
   if (!containerRef.value) return;
@@ -236,7 +247,17 @@ onUnmounted(() => {
             <i :class="isSelected(image.id) ? 'pi pi-check-circle' : 'pi pi-circle'" />
           </div>
           <div class="image-wrapper">
-            <img :src="getThumbnailUrl(image.s3Url, { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE, fit: 'cover' })" :alt="image.filename" loading="lazy" />
+            <div v-if="isImageLoading(image.id)" class="loading-spinner">
+              <i class="pi pi-spin pi-spinner"></i>
+            </div>
+            <img
+              :src="getThumbnailUrl(image.s3Url, { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE, fit: 'cover' })"
+              :alt="image.filename"
+              loading="lazy"
+              :class="{ 'is-loading': isImageLoading(image.id) }"
+              @load="handleImageLoaded(image.id)"
+              @error="handleImageLoaded(image.id)"
+            />
           </div>
         </div>
       </template>
@@ -291,12 +312,28 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .image-wrapper img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: opacity 0.2s ease;
+}
+
+.image-wrapper img.is-loading {
+  opacity: 0;
+}
+
+.loading-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  color: var(--p-surface-500);
+  z-index: 1;
 }
 
 /* Selection styles */
