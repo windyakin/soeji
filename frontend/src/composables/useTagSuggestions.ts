@@ -1,12 +1,55 @@
-import { ref } from "vue";
+import { ref, computed, type ComputedRef, type Ref } from "vue";
 import type { TagListItem, TagsResponse } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
-export function useTagSuggestions() {
-  const suggestions = ref<TagListItem[]>([]);
+/**
+ * Tag prefix types and their display labels
+ */
+export type TagPrefix = "p" | "u" | "n" | null;
+
+export interface PrefixInfo {
+  prefix: TagPrefix;
+  label: string;
+  severity: "success" | "info" | "danger" | "secondary";
+}
+
+const prefixMap: Record<string, PrefixInfo> = {
+  p: { prefix: "p", label: "positive", severity: "success" },
+  u: { prefix: "u", label: "user", severity: "info" },
+  n: { prefix: "n", label: "negative", severity: "danger" },
+};
+
+export interface SuggestionItem extends TagListItem {
+  prefixInfo: PrefixInfo;
+  displayPrefix: string; // For inserting into input (e.g., "p:", "u:", "-p:")
+}
+
+// Current prefix state for suggestions
+const currentPrefix = ref<string>("");
+
+export interface UseTagSuggestionsReturn {
+  suggestions: ComputedRef<SuggestionItem[]>;
+  loading: Ref<boolean>;
+  error: Ref<string | null>;
+  fetchSuggestions: (query: string) => Promise<void>;
+  clearSuggestions: () => void;
+}
+
+export function useTagSuggestions(): UseTagSuggestionsReturn {
+  const rawSuggestions = ref<TagListItem[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
+
+  // Transform suggestions with prefix info
+  const suggestions = computed<SuggestionItem[]>(() => {
+    const prefixInfo = getPrefixInfo(currentPrefix.value);
+    return rawSuggestions.value.map((tag) => ({
+      ...tag,
+      prefixInfo,
+      displayPrefix: currentPrefix.value,
+    }));
+  });
 
   let abortController: AbortController | null = null;
 
@@ -17,14 +60,17 @@ export function useTagSuggestions() {
     }
 
     if (!query.trim()) {
-      suggestions.value = [];
+      rawSuggestions.value = [];
+      currentPrefix.value = "";
       return;
     }
 
     // Extract the last word being typed for suggestion
-    const lastWord = getLastWord(query);
-    if (!lastWord || lastWord.length < 2) {
-      suggestions.value = [];
+    const { word, prefix } = parseLastWord(query);
+    currentPrefix.value = prefix;
+
+    if (!word || word.length < 2) {
+      rawSuggestions.value = [];
       return;
     }
 
@@ -34,7 +80,7 @@ export function useTagSuggestions() {
 
     try {
       const params = new URLSearchParams();
-      params.set("q", lastWord);
+      params.set("q", word);
       params.set("limit", "10");
 
       const response = await fetch(`${API_BASE}/api/tags/suggest?${params}`, {
@@ -46,21 +92,22 @@ export function useTagSuggestions() {
       }
 
       const data: TagsResponse = await response.json();
-      suggestions.value = data.tags;
+      rawSuggestions.value = data.tags;
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         // Request was cancelled, ignore
         return;
       }
       error.value = e instanceof Error ? e.message : "Unknown error";
-      suggestions.value = [];
+      rawSuggestions.value = [];
     } finally {
       loading.value = false;
     }
   }
 
   function clearSuggestions() {
-    suggestions.value = [];
+    rawSuggestions.value = [];
+    currentPrefix.value = "";
   }
 
   return {
@@ -73,43 +120,61 @@ export function useTagSuggestions() {
 }
 
 /**
- * Extract the last word being typed from the query
- * Handles prefixes like +, -, and quoted strings
+ * Get prefix info from prefix string
  */
-function getLastWord(query: string): string {
+function getPrefixInfo(prefix: string): PrefixInfo {
+  // Extract base prefix (remove leading -)
+  const isNegative = prefix.startsWith("-");
+  const basePrefix = isNegative ? prefix.slice(1).replace(":", "") : prefix.replace(":", "");
+
+  const info = prefixMap[basePrefix];
+  if (info) {
+    return info;
+  }
+
+  // Default: positive (no prefix)
+  return { prefix: "p", label: "positive", severity: "success" };
+}
+
+/**
+ * Parse the last word being typed from the query
+ * Returns the word and its prefix (e.g., "p:", "u:", "-p:")
+ */
+function parseLastWord(query: string): { word: string; prefix: string } {
   const trimmed = query.trimEnd();
 
   // Find the last space
   const lastSpaceIndex = trimmed.lastIndexOf(" ");
   const lastPart = lastSpaceIndex === -1 ? trimmed : trimmed.slice(lastSpaceIndex + 1);
 
-  // Remove prefix operators (+, -)
-  let word = lastPart;
-  if (word.startsWith("+") || word.startsWith("-")) {
-    word = word.slice(1);
+  // Match pattern: optional minus, optional prefix (p/u/n), colon, then word
+  // Examples: "cat", "p:cat", "-p:cat", "u:dog"
+  const prefixMatch = lastPart.match(/^(-?)([pun]:)?(.*)$/i);
+
+  if (prefixMatch) {
+    const minus = prefixMatch[1] || "";
+    const typePrefix = prefixMatch[2] || "";
+    let word = prefixMatch[3] || "";
+
+    // Remove quotes from word
+    word = word.replace(/^["']|["']$/g, "");
+
+    // Build full prefix (e.g., "-p:", "u:", "")
+    const fullPrefix = minus + typePrefix;
+
+    return { word, prefix: fullPrefix };
   }
 
-  // Remove quotes
-  word = word.replace(/^["']|["']$/g, "");
-
-  return word;
+  return { word: lastPart, prefix: "" };
 }
 
 /**
  * Replace the last word in query with the selected tag
+ * Preserves the prefix (p:, u:, n:, -p:, etc.)
  */
-export function replaceLastWord(query: string, tagName: string): string {
+export function replaceLastWord(query: string, tagName: string, displayPrefix: string): string {
   const trimmed = query.trimEnd();
   const lastSpaceIndex = trimmed.lastIndexOf(" ");
-
-  // Check if the last word has a prefix
-  const lastPart = lastSpaceIndex === -1 ? trimmed : trimmed.slice(lastSpaceIndex + 1);
-  let prefix = "";
-  if (lastPart.startsWith("+")) {
-    prefix = "+";
-  } else if (lastPart.startsWith("-")) {
-    prefix = "-";
-  }
 
   // Build the new query
   const basePart = lastSpaceIndex === -1 ? "" : trimmed.slice(0, lastSpaceIndex + 1);
@@ -117,5 +182,6 @@ export function replaceLastWord(query: string, tagName: string): string {
   // Quote the tag if it contains spaces
   const formattedTag = tagName.includes(" ") ? `"${tagName}"` : tagName;
 
-  return basePart + prefix + formattedTag + " ";
+  // Use the prefix from the suggestion (preserves p:, u:, -p:, etc.)
+  return basePart + displayPrefix + formattedTag + " ";
 }
