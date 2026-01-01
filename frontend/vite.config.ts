@@ -18,7 +18,7 @@ export default defineConfig({
         description: "Image tagging and management tool for NAI",
         theme_color: "#10B981",
         background_color: "#ffffff",
-        display: "standalone",
+        display: "fullscreen",
         icons: [
           {
             src: "/pwa-192x192.png",
