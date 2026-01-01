@@ -49,6 +49,28 @@ const selectedImageForInfo = ref<SearchHit | null>(null);
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Check if query ends with an incomplete prefix pattern
+ * These patterns indicate user is still typing a prefix and search should be skipped:
+ * - "p", "u", "n" (single letter that could be start of prefix)
+ * - "p:", "u:", "n:" (prefix with colon, waiting for search term)
+ * - "-p", "-u", "-n" (negative prefix start)
+ * - "-p:", "-u:", "-n:" (negative prefix with colon)
+ * Also handles multi-word queries like "cat p:" or "cat -u:"
+ */
+function isIncompletePrefix(query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) return false;
+
+  // Get the last "word" (space-separated)
+  const lastSpaceIndex = trimmed.lastIndexOf(" ");
+  const lastPart = lastSpaceIndex === -1 ? trimmed : trimmed.slice(lastSpaceIndex + 1);
+
+  // Check if last part is an incomplete prefix pattern
+  // Matches: p, u, n, p:, u:, n:, -p, -u, -n, -p:, -u:, -n:
+  return /^-?[pun]:?$/i.test(lastPart);
+}
+
 // Watch for search param changes and trigger search
 watch([searchQuery, searchMode], ([newQuery, newMode]) => {
   if (!isInitialized.value) return;
@@ -56,6 +78,12 @@ watch([searchQuery, searchMode], ([newQuery, newMode]) => {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
   }
+
+  // Skip search if user is typing a prefix
+  if (isIncompletePrefix(newQuery)) {
+    return;
+  }
+
   debounceTimer = setTimeout(() => {
     search(newQuery, newMode);
   }, 300);

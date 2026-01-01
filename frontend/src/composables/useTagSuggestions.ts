@@ -137,8 +137,18 @@ function getPrefixInfo(prefix: string): PrefixInfo {
 }
 
 /**
+ * Check if input is just a prefix pattern (p, p:, -p, -p:, etc.)
+ * These should not trigger search
+ */
+function isPrefixOnly(input: string): boolean {
+  // Matches: p, u, n, p:, u:, n:, -p, -u, -n, -p:, -u:, -n:
+  return /^-?[pun]:?$/i.test(input);
+}
+
+/**
  * Parse the last word being typed from the query
  * Returns the word and its prefix (e.g., "p:", "u:", "-p:")
+ * Returns empty word if only typing a prefix
  */
 function parseLastWord(query: string): { word: string; prefix: string } {
   const trimmed = query.trimEnd();
@@ -146,6 +156,11 @@ function parseLastWord(query: string): { word: string; prefix: string } {
   // Find the last space
   const lastSpaceIndex = trimmed.lastIndexOf(" ");
   const lastPart = lastSpaceIndex === -1 ? trimmed : trimmed.slice(lastSpaceIndex + 1);
+
+  // Check if user is only typing a prefix (p, p:, -p:, etc.)
+  if (isPrefixOnly(lastPart)) {
+    return { word: "", prefix: "" };
+  }
 
   // Match pattern: optional minus, optional prefix (p/u/n), colon, then word
   // Examples: "cat", "p:cat", "-p:cat", "u:dog"
