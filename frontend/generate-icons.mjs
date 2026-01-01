@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import { readFileSync } from 'fs';
 
-const svg = readFileSync('./public/soeji.svg');
+const svg = readFileSync('./public/soeji_r.svg');
 
 async function generateIcons() {
   try {

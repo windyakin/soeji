@@ -9,11 +9,14 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["soeji.svg"],
+      // devOptions: {
+      //   enabled: true,
+      // },
       manifest: {
-        name: "Soeji - 画像管理システム",
+        name: "Soeji",
         short_name: "Soeji",
-        description: "画像の検索とタグ付けができる画像管理システム",
-        theme_color: "#ffffff",
+        description: "Image tagging and management tool for NAI",
+        theme_color: "#10B981",
         background_color: "#ffffff",
         display: "standalone",
         icons: [
@@ -21,17 +24,19 @@ export default defineConfig({
             src: "/pwa-192x192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "maskable",
           },
           {
             src: "/pwa-512x512.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "maskable",
           },
           {
             src: "/pwa-512x512.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "any maskable",
+            purpose: "any",
           },
         ],
       },
