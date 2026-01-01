@@ -80,18 +80,27 @@ function onImageError() {
   }
 }
 
-// Lock body scroll when lightbox is visible
+// Lock body scroll and update theme-color when lightbox is visible
 watch(
   () => props.visible,
   async (isVisible) => {
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (isVisible) {
       // Prevent body scroll
       document.body.style.overflow = "hidden";
+      // Set status bar to black for lightbox
+      if (themeColorMeta) {
+        themeColorMeta.setAttribute("content", "#000000");
+      }
       await nextTick();
       overlayRef.value?.focus();
     } else {
       // Restore body scroll
       document.body.style.overflow = "";
+      // Restore original theme color
+      if (themeColorMeta) {
+        themeColorMeta.setAttribute("content", "#10B981");
+      }
     }
   }
 );
@@ -99,6 +108,11 @@ watch(
 // Clean up on unmount
 onUnmounted(() => {
   document.body.style.overflow = "";
+  // Restore theme color
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeColorMeta) {
+    themeColorMeta.setAttribute("content", "#10B981");
+  }
 });
 
 const hasPrev = computed(() => props.currentIndex > 0);
