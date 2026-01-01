@@ -73,8 +73,9 @@ function close() {
   emit("update:visible", false);
 }
 
-function handleTagClick(tag: string) {
-  emit("searchTag", tag);
+function handleTagClick(tag: string, prefix?: string) {
+  const prefixedTag = prefix ? `${prefix}:${tag}` : tag;
+  emit("searchTag", prefixedTag);
   close();
 }
 
@@ -171,7 +172,22 @@ function handleDelete() {
             :value="tag"
             severity="success"
             class="tag-item clickable"
-            @click="handleTagClick(tag)"
+            @click="handleTagClick(tag, 'p')"
+          />
+        </div>
+      </div>
+
+      <!-- User Tags -->
+      <div v-if="image.userTags?.length" class="info-section">
+        <h4>User Tags</h4>
+        <div class="tags-container">
+          <Tag
+            v-for="tag in image.userTags"
+            :key="tag"
+            :value="tag"
+            severity="info"
+            class="tag-item clickable"
+            @click="handleTagClick(tag, 'u')"
           />
         </div>
       </div>

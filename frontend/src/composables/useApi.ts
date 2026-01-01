@@ -79,7 +79,6 @@ export function useInfiniteSearch() {
       }
       params.set("limit", limit.toString());
       params.set("offset", "0");
-      params.set("filter", "positiveTags");
       params.set("mode", searchMode.value);
 
       const response = await fetch(`${API_BASE}/api/search?${params}`);
@@ -113,7 +112,6 @@ export function useInfiniteSearch() {
       }
       params.set("limit", limit.toString());
       params.set("offset", images.value.length.toString());
-      params.set("filter", "positiveTags");
       params.set("mode", searchMode.value);
 
       const response = await fetch(`${API_BASE}/api/search?${params}`);

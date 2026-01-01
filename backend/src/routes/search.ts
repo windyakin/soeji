@@ -19,6 +19,101 @@ function buildS3Url(s3Key: string): string {
 }
 
 /**
+ * Parse tag with prefix to determine which field to search
+ * Prefixes:
+ * - u:tagname → userTags only
+ * - p:tagname → positiveTags only
+ * - n:tagname → negativeTags only
+ * - tagname (no prefix) → positiveTags (default)
+ *
+ * Returns: { tag: string, field: "positiveTags" | "negativeTags" | "userTags" | "tags" }
+ */
+function parseTagPrefix(tag: string): { tag: string; field: string } {
+  const prefixMatch = tag.match(/^([upn]):(.+)$/i);
+  if (prefixMatch) {
+    const prefix = prefixMatch[1].toLowerCase();
+    const tagName = prefixMatch[2];
+    switch (prefix) {
+      case "u":
+        return { tag: tagName, field: "userTags" };
+      case "p":
+        return { tag: tagName, field: "positiveTags" };
+      case "n":
+        return { tag: tagName, field: "negativeTags" };
+    }
+  }
+  // Default: positiveTags
+  return { tag, field: "positiveTags" };
+}
+
+/**
+ * Extract prefixed search terms from query string
+ * Detects prefixed terms (u:, p:, n:) and groups them by target field
+ * Also supports negative prefixes (-u:, -p:, -n:) for exclusion
+ * Uses full-text search (not exact match filters) for fuzzy matching
+ *
+ * Returns: {
+ *   prefixedTerms: Array<{term: string, field: string, exclude: boolean}>,
+ *   remainingQuery: string,
+ *   searchFields: string[] (unique fields to search on, excludes negative terms)
+ * }
+ */
+function extractPrefixedTerms(query: string): {
+  prefixedTerms: Array<{ term: string; field: string; exclude: boolean }>;
+  remainingQuery: string;
+  searchFields: string[];
+} {
+  const prefixedTerms: Array<{ term: string; field: string; exclude: boolean }> = [];
+  const remainingTerms: string[] = [];
+  const searchFieldsSet = new Set<string>();
+
+  if (!query.trim()) {
+    return { prefixedTerms, remainingQuery: "", searchFields: [] };
+  }
+
+  // Split by spaces but preserve quoted strings
+  const regex = /("[^"]*"|\S+)/g;
+  const matches = query.match(regex) || [];
+
+  for (const term of matches) {
+    // Match optional minus, then prefix (u/p/n), then colon, then content
+    const prefixMatch = term.match(/^(-?)([upn]):(.+)$/i);
+    if (prefixMatch) {
+      const isExclude = prefixMatch[1] === "-";
+      const prefix = prefixMatch[2].toLowerCase();
+      const searchTerm = prefixMatch[3].replace(/^["']|["']$/g, "");
+      let field: string;
+      switch (prefix) {
+        case "u":
+          field = "userTags";
+          break;
+        case "p":
+          field = "positiveTags";
+          break;
+        case "n":
+          field = "negativeTags";
+          break;
+        default:
+          field = "positiveTags";
+      }
+      prefixedTerms.push({ term: searchTerm, field, exclude: isExclude });
+      // Only add to search fields if not excluding
+      if (!isExclude) {
+        searchFieldsSet.add(field);
+      }
+    } else {
+      remainingTerms.push(term);
+    }
+  }
+
+  return {
+    prefixedTerms,
+    remainingQuery: remainingTerms.join(" "),
+    searchFields: Array.from(searchFieldsSet),
+  };
+}
+
+/**
  * Parse search query for AND/exclude operators
  * Syntax:
  * - Regular search: "cat dog" (OR by default)
@@ -88,7 +183,6 @@ router.get("/", async (req, res) => {
       limit = "20",
       offset = "0",
       sort,
-      filter,
       mode = "or", // "or" | "and" - default search mode
     } = req.query;
 
@@ -96,65 +190,105 @@ router.get("/", async (req, res) => {
 
     const filters: string[] = [];
 
-    // Filter by positive tags only when specified
-    if (filter === "positiveTags" && tags) {
+    // Extract prefixed search terms from query string (u:, p:, n: prefixes)
+    // Also handles negative prefixes (-u:, -p:, -n:) for exclusion
+    // These use full-text search on specific fields, not exact match filters
+    const { prefixedTerms, remainingQuery, searchFields } = extractPrefixedTerms(q as string);
+
+    // Separate include and exclude prefixed terms
+    const includePrefixedTerms = prefixedTerms.filter((t) => !t.exclude);
+    const excludePrefixedTerms = prefixedTerms.filter((t) => t.exclude);
+
+    // Build search query: combine included prefixed terms with remaining query
+    const prefixedSearchTerms = includePrefixedTerms.map((t) => t.term);
+    const allSearchTerms = [...prefixedSearchTerms];
+
+    // Also support legacy tags parameter with prefix support (uses exact match filter)
+    if (tags) {
       const tagList = (tags as string).split(",").map((t) => t.trim());
-      for (const tag of tagList) {
-        filters.push(`positiveTags = "${tag}"`);
-      }
-    } else if (tags) {
-      const tagList = (tags as string).split(",").map((t) => t.trim());
-      for (const tag of tagList) {
-        filters.push(`tags = "${tag}"`);
+      for (const rawTag of tagList) {
+        const { tag, field } = parseTagPrefix(rawTag);
+        filters.push(`${field} = "${tag}"`);
       }
     }
 
-    // Parse the search query
-    const parsed = parseSearchQuery(q as string);
+    // Parse the remaining search query (after prefixed terms removed)
+    const parsed = parseSearchQuery(remainingQuery);
     const useAndMode = mode === "and" || parsed.useAnd;
 
-    // Build search query
-    let searchQuery = "";
-    if (parsed.includeTerms.length > 0) {
-      if (useAndMode) {
-        // For AND search, we search each term separately and rely on Meilisearch
-        // to find documents containing all terms
-        searchQuery = parsed.includeTerms.join(" ");
-      } else {
-        searchQuery = parsed.includeTerms.join(" ");
-      }
+    // Add remaining terms to search
+    allSearchTerms.push(...parsed.includeTerms);
+
+    // Build final search query
+    const searchQuery = allSearchTerms.join(" ");
+
+    // Determine which fields to search on
+    // Default fields exclude negativeTags (only searched with explicit n: prefix)
+    const defaultSearchFields = ["positiveTags", "userTags"];
+
+    let attributesToSearchOn: string[];
+    if (searchFields.length > 0 && parsed.includeTerms.length === 0) {
+      // Only prefixed terms: search only on specified tag fields
+      attributesToSearchOn = searchFields;
+    } else if (searchFields.length > 0) {
+      // Mixed: search on tag fields + default text fields (without duplicates)
+      const combined = new Set([...searchFields, ...defaultSearchFields]);
+      attributesToSearchOn = Array.from(combined);
+    } else {
+      // No prefixes: use default fields (excludes negativeTags)
+      attributesToSearchOn = defaultSearchFields;
     }
+
+    // Check if we need to apply client-side exclusion
+    const hasExclusions = parsed.excludeTerms.length > 0 || excludePrefixedTerms.length > 0;
 
     // Perform search
     let result = await index.search(searchQuery, {
       filter: filters.length > 0 ? filters.join(" AND ") : undefined,
-      limit: parseInt(limit as string, 10) * (parsed.excludeTerms.length > 0 ? 3 : 1), // Fetch more if excluding
-      offset: parsed.excludeTerms.length > 0 ? 0 : parseInt(offset as string, 10),
+      limit: parseInt(limit as string, 10) * (hasExclusions ? 3 : 1), // Fetch more if excluding
+      offset: hasExclusions ? 0 : parseInt(offset as string, 10),
       sort: sort ? [(sort as string)] : ["createdAt:desc"],
-      attributesToSearchOn:
-        filter === "positiveTags"
-          ? ["positiveTags", "prompt", "v4BaseCaption"]
-          : undefined,
+      attributesToSearchOn,
       matchingStrategy: useAndMode ? "all" : "last",
     });
 
     let hits = result.hits;
 
     // Apply exclude filter client-side (Meilisearch doesn't support NOT in search)
-    if (parsed.excludeTerms.length > 0) {
+    if (hasExclusions) {
       const excludeLower = parsed.excludeTerms.map((t) => t.toLowerCase());
-      hits = hits.filter((hit: Record<string, unknown>) => {
-        const searchableText = [
-          hit.prompt,
-          hit.v4BaseCaption,
-          ...(Array.isArray(hit.positiveTags) ? hit.positiveTags : []),
-          ...(Array.isArray(hit.tags) ? hit.tags : []),
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
 
-        return !excludeLower.some((term) => searchableText.includes(term));
+      hits = hits.filter((hit: Record<string, unknown>) => {
+        // Check general exclude terms (from -term syntax)
+        if (excludeLower.length > 0) {
+          const searchableText = [
+            hit.prompt,
+            hit.v4BaseCaption,
+            ...(Array.isArray(hit.positiveTags) ? hit.positiveTags : []),
+            ...(Array.isArray(hit.tags) ? hit.tags : []),
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+          if (excludeLower.some((term) => searchableText.includes(term))) {
+            return false;
+          }
+        }
+
+        // Check prefixed exclude terms (from -p:, -u:, -n: syntax)
+        for (const { term, field } of excludePrefixedTerms) {
+          const fieldValue = hit[field];
+          if (Array.isArray(fieldValue)) {
+            const fieldLower = fieldValue.map((v) => String(v).toLowerCase());
+            const termLower = term.toLowerCase();
+            if (fieldLower.some((v) => v.includes(termLower))) {
+              return false;
+            }
+          }
+        }
+
+        return true;
       });
 
       // Apply offset and limit after filtering

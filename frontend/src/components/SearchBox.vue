@@ -4,6 +4,7 @@ import InputText from "primevue/inputtext";
 import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
 import SelectButton from "primevue/selectbutton";
+import Tag from "primevue/tag";
 import { useTagSuggestions, replaceLastWord } from "../composables/useTagSuggestions";
 
 type SearchMode = "or" | "and";
@@ -99,10 +100,10 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 function selectSuggestion(index: number) {
-  const tag = suggestions.value[index];
-  if (tag) {
+  const suggestion = suggestions.value[index];
+  if (suggestion) {
     skipNextFetch.value = true;
-    model.value = replaceLastWord(model.value, tag.name);
+    model.value = replaceLastWord(model.value, suggestion.name, suggestion.displayPrefix);
     clearSuggestions();
     showSuggestions.value = false;
     selectedIndex.value = -1;
@@ -131,15 +132,22 @@ function selectSuggestion(index: number) {
         <!-- Suggestions dropdown -->
         <div v-if="showSuggestions && suggestions.length > 0" class="suggestions-dropdown">
           <div
-            v-for="(tag, index) in suggestions"
-            :key="tag.id"
+            v-for="(suggestion, index) in suggestions"
+            :key="suggestion.id"
             class="suggestion-item"
             :class="{ selected: index === selectedIndex }"
             @mousedown.prevent="selectSuggestion(index)"
             @mouseenter="selectedIndex = index"
           >
-            <span class="tag-name">{{ tag.name }}</span>
-            <span class="tag-count">{{ tag.imageCount }}</span>
+            <div class="suggestion-left">
+              <Tag
+                :value="suggestion.prefixInfo.label"
+                :severity="suggestion.prefixInfo.severity"
+                class="prefix-badge"
+              />
+              <span class="tag-name">{{ suggestion.name }}</span>
+            </div>
+            <span class="tag-count">{{ suggestion.imageCount }}</span>
           </div>
         </div>
       </div>
@@ -223,6 +231,17 @@ function selectSuggestion(index: number) {
 .suggestion-item:hover,
 .suggestion-item.selected {
   background: var(--p-surface-100);
+}
+
+.suggestion-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.prefix-badge {
+  font-size: 0.625rem;
+  padding: 0.125rem 0.375rem;
 }
 
 .tag-name {
