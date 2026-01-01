@@ -1,7 +1,41 @@
 import { ref, computed } from "vue";
-import type { SearchResponse, SearchHit } from "../types/api";
+import type { SearchResponse, SearchHit, BatchTagResponse } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+// Batch tagging API functions
+export async function addTagsToImages(
+  imageIds: string[],
+  tags: string[]
+): Promise<BatchTagResponse> {
+  const response = await fetch(`${API_BASE}/api/images/tags`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageIds, tags }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Failed to add tags" }));
+    throw new Error(error.error || "Failed to add tags");
+  }
+
+  return response.json();
+}
+
+export async function removeTagFromImage(
+  imageId: string,
+  tagId: string
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/images/${imageId}/tags/${tagId}`,
+    { method: "DELETE" }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Failed to remove tag" }));
+    throw new Error(error.error || "Failed to remove tag");
+  }
+}
 
 export type SearchMode = "or" | "and";
 
