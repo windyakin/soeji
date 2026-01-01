@@ -113,6 +113,7 @@ function handleKeydown(e: KeyboardEvent) {
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 }
 
 .panel-content {
