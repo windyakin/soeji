@@ -35,6 +35,8 @@ const isSwiping = ref(false);
 const swipeThreshold = 50; // minimum distance for swipe
 
 const currentImage = computed(() => props.images[props.currentIndex]);
+const prevImage = computed(() => props.images[props.currentIndex - 1]);
+const nextImage = computed(() => props.images[props.currentIndex + 1]);
 
 const downloadUrl = computed(() => {
   if (!currentImage.value) return "";
@@ -358,24 +360,24 @@ function handleTouchEnd(e: TouchEvent) {
           :class="{ fullscreen: isFullscreen }"
           @click="handleFullscreenCenterTap"
         >
-          <!-- Center spinner for normal mode -->
-          <div v-if="showLoadingSpinner && !isFullscreen" class="loading-spinner">
-            <i class="pi pi-spin pi-spinner"></i>
-          </div>
           <img
             :src="currentImage.s3Url"
             :alt="currentImage.filename"
             class="lightbox-image"
-            :class="{ loading: showLoadingSpinner && !isFullscreen, fullscreen: isFullscreen }"
+            :class="{ fullscreen: isFullscreen }"
             @load="onImageLoad"
             @error="onImageError"
           />
         </div>
 
-        <!-- Top-right spinner for fullscreen mode -->
-        <div v-if="showLoadingSpinner && isFullscreen" class="fullscreen-loading">
+        <!-- Top-left loading spinner (both normal and fullscreen modes) -->
+        <div v-if="showLoadingSpinner" class="loading-indicator">
           <i class="pi pi-spin pi-spinner"></i>
         </div>
+
+        <!-- Preload previous and next images -->
+        <img v-show="prevImage" :src="prevImage?.s3Url" class="preload-image" aria-hidden="true" />
+        <img v-show="nextImage" :src="nextImage?.s3Url" class="preload-image" aria-hidden="true" />
 
         <!-- Image counter (hidden in fullscreen) -->
         <div v-if="!isFullscreen" class="lightbox-footer">
@@ -509,24 +511,10 @@ function handleTouchEnd(e: TouchEvent) {
   height: 100%;
 }
 
-.loading-spinner {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1;
-}
-
-.loading-spinner .pi-spinner {
-  font-size: 3rem;
-  color: white;
-  opacity: 0.8;
-}
-
-.fullscreen-loading {
+.loading-indicator {
   position: absolute;
   top: 1rem;
-  right: 1rem;
+  left: 1rem;
   z-index: 10;
   background: rgba(0, 0, 0, 0.5);
   border-radius: 50%;
@@ -537,9 +525,17 @@ function handleTouchEnd(e: TouchEvent) {
   justify-content: center;
 }
 
-.fullscreen-loading .pi-spinner {
+.loading-indicator .pi-spinner {
   font-size: 1.25rem;
   color: white;
+}
+
+.preload-image {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .lightbox-image {
@@ -548,11 +544,6 @@ function handleTouchEnd(e: TouchEvent) {
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
-  transition: opacity 0.2s;
-}
-
-.lightbox-image.loading {
-  opacity: 0;
 }
 
 .lightbox-image.fullscreen {
