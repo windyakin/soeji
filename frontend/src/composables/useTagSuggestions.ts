@@ -127,8 +127,9 @@ function getPrefixInfo(prefix: string): PrefixInfo {
   const isNegative = prefix.startsWith("-");
   const basePrefix = isNegative ? prefix.slice(1).replace(":", "") : prefix.replace(":", "");
 
-  if (basePrefix in prefixMap) {
-    return prefixMap[basePrefix];
+  const info = prefixMap[basePrefix];
+  if (info) {
+    return info;
   }
 
   // Default: positive (no prefix)
