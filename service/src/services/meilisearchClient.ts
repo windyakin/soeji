@@ -24,6 +24,7 @@ export interface ImageDocument {
   tags: string[];
   positiveTags: string[];
   negativeTags: string[];
+  userTags: string[];
   weightedTags: WeightedTagDocument[];
   seed: number | null;
   width: number | null;
@@ -48,6 +49,7 @@ export async function initializeMeilisearch(): Promise<void> {
     "tags",
     "positiveTags",
     "negativeTags",
+    "userTags",
     "filename",
   ]);
 
@@ -56,6 +58,7 @@ export async function initializeMeilisearch(): Promise<void> {
     "tags",
     "positiveTags",
     "negativeTags",
+    "userTags",
     "seed",
     "width",
     "height",

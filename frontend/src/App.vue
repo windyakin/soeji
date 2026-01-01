@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import SearchBox from "./components/SearchBox.vue";
 import ImageGrid from "./components/ImageGrid.vue";
 import ImageLightbox from "./components/ImageLightbox.vue";
 import ImageInfoModal from "./components/ImageInfoModal.vue";
-import { useInfiniteSearch } from "./composables/useApi";
+import TaggingPanel from "./components/TaggingPanel.vue";
+import { useInfiniteSearch, addTagsToImages } from "./composables/useApi";
 import { useSearchParams } from "./composables/useSearchParams";
+import { useImageSelection } from "./composables/useImageSelection";
 import type { SearchHit } from "./types/api";
 
 // URL-synced search params
@@ -20,6 +22,20 @@ const {
   search,
   loadMore,
 } = useInfiniteSearch();
+
+// Image selection state
+const {
+  selectedIds,
+  selectedCount,
+  isSelectionMode,
+  selectedImages,
+  handleClick: handleSelectionClick,
+  clearSelection,
+} = useImageSelection(images);
+
+// Tagging state
+const taggingLoading = ref(false);
+const taggingPanelVisible = computed(() => isSelectionMode.value);
 
 // Lightbox state
 const lightboxVisible = ref(false);
@@ -71,9 +87,33 @@ function handleScroll() {
   }
 }
 
-function handleImageSelect(index: number) {
+function handleImageSelect(index: number, event: MouseEvent) {
+  // Check if selection mode interaction
+  if (handleSelectionClick(index, event)) {
+    return; // Don't open lightbox
+  }
+
+  // Normal click - open lightbox
   currentImageIndex.value = index;
   lightboxVisible.value = true;
+}
+
+async function handleAddTag(tagName: string) {
+  if (selectedIds.value.size === 0) return;
+
+  taggingLoading.value = true;
+  try {
+    const imageIds = Array.from(selectedIds.value);
+    await addTagsToImages(imageIds, [tagName]);
+    // Refresh search results to show updated tags
+    await search(searchQuery.value, searchMode.value);
+    // Clear selection after successful tagging
+    clearSelection();
+  } catch (error) {
+    console.error("Failed to add tag:", error);
+  } finally {
+    taggingLoading.value = false;
+  }
 }
 
 function handleShowInfo(image: SearchHit) {
@@ -94,6 +134,21 @@ function handleSearchTag(tag: string) {
   // Close lightbox if open
   lightboxVisible.value = false;
 }
+
+function handleImageLongPress(index: number) {
+  // Long press on mobile triggers selection mode
+  const image = images.value[index];
+  if (image) {
+    // Use the toggleSelection from useImageSelection
+    const newSelectedIds = new Set(selectedIds.value);
+    if (newSelectedIds.has(image.id)) {
+      newSelectedIds.delete(image.id);
+    } else {
+      newSelectedIds.add(image.id);
+    }
+    selectedIds.value = newSelectedIds;
+  }
+}
 </script>
 
 <template>
@@ -113,7 +168,14 @@ function handleSearchTag(tag: string) {
 
     <main class="app-main">
       <section class="results-section">
-        <ImageGrid :images="images" :loading="loading" @select="handleImageSelect" />
+        <ImageGrid
+          :images="images"
+          :loading="loading"
+          :selected-ids="selectedIds"
+          :selection-mode="isSelectionMode"
+          @select="handleImageSelect"
+          @longpress="handleImageLongPress"
+        />
 
         <!-- Loading more indicator -->
         <div v-if="loadingMore" class="loading-more">
@@ -144,6 +206,16 @@ function handleSearchTag(tag: string) {
       v-model:visible="infoModalVisible"
       :image="selectedImageForInfo"
       @search-tag="handleSearchTag"
+    />
+
+    <!-- Tagging Panel -->
+    <TaggingPanel
+      v-if="taggingPanelVisible"
+      :selected-count="selectedCount"
+      :selected-images="selectedImages"
+      :loading="taggingLoading"
+      @add-tag="handleAddTag"
+      @clear-selection="clearSelection"
     />
   </div>
 </template>

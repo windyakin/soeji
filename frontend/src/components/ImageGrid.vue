@@ -6,11 +6,21 @@ import { getThumbnailUrl } from "../utils/image";
 const props = defineProps<{
   images: SearchHit[];
   loading?: boolean;
+  selectedIds?: Set<string>;
+  selectionMode?: boolean;
 }>();
 
 const emit = defineEmits<{
-  select: [index: number];
+  select: [index: number, event: MouseEvent];
+  longpress: [index: number];
 }>();
+
+// Long press handling for touch devices
+const LONG_PRESS_DURATION = 500; // ms
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+let longPressTriggered = false;
+let touchStartPos = { x: 0, y: 0 };
+const TOUCH_MOVE_THRESHOLD = 10; // px - cancel if moved more than this
 
 // Virtual scroll state
 const containerRef = ref<HTMLElement | null>(null);
@@ -91,8 +101,57 @@ function getItemStyle(index: number) {
   };
 }
 
-function handleImageClick(index: number) {
-  emit("select", index);
+function handleImageClick(index: number, event: MouseEvent) {
+  emit("select", index, event);
+}
+
+function isSelected(imageId: string): boolean {
+  return props.selectedIds?.has(imageId) ?? false;
+}
+
+// Touch event handlers for long press
+function handleTouchStart(index: number, event: TouchEvent) {
+  longPressTriggered = false;
+  const touch = event.touches[0];
+  if (!touch) return;
+  touchStartPos = { x: touch.clientX, y: touch.clientY };
+
+  longPressTimer = setTimeout(() => {
+    longPressTriggered = true;
+    // Vibrate if supported (haptic feedback)
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+    emit("longpress", index);
+  }, LONG_PRESS_DURATION);
+}
+
+function handleTouchMove(event: TouchEvent) {
+  if (!longPressTimer) return;
+
+  const touch = event.touches[0];
+  if (!touch) return;
+  const dx = Math.abs(touch.clientX - touchStartPos.x);
+  const dy = Math.abs(touch.clientY - touchStartPos.y);
+
+  // Cancel long press if finger moved too much
+  if (dx > TOUCH_MOVE_THRESHOLD || dy > TOUCH_MOVE_THRESHOLD) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+}
+
+function handleTouchEnd(event: TouchEvent) {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+
+  // If long press was triggered, prevent the click
+  if (longPressTriggered) {
+    event.preventDefault();
+    longPressTriggered = false;
+  }
 }
 
 let scrollHandler: () => void;
@@ -152,9 +211,17 @@ onUnmounted(() => {
         <div
           v-if="isItemVisible(index)"
           class="image-tile"
+          :class="{ 'is-selected': isSelected(image.id), 'selection-mode': selectionMode }"
           :style="getItemStyle(index)"
-          @click="handleImageClick(index)"
+          @click="handleImageClick(index, $event)"
+          @touchstart.passive="handleTouchStart(index, $event)"
+          @touchmove.passive="handleTouchMove($event)"
+          @touchend="handleTouchEnd($event)"
+          @touchcancel="handleTouchEnd($event)"
         >
+          <div v-if="selectionMode" class="selection-indicator">
+            <i :class="isSelected(image.id) ? 'pi pi-check-circle' : 'pi pi-circle'" />
+          </div>
           <div class="image-wrapper">
             <img :src="getThumbnailUrl(image.s3Url, { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE, fit: 'cover' })" :alt="image.filename" loading="lazy" />
           </div>
@@ -217,5 +284,34 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Selection styles */
+.image-tile.is-selected {
+  outline: 3px solid var(--p-primary-color);
+  outline-offset: -3px;
+}
+
+.image-tile.is-selected .image-wrapper img {
+  opacity: 0.85;
+}
+
+.selection-indicator {
+  position: absolute;
+  top: calc(15px - (1.25rem / 2));
+  left: 15px;
+  z-index: 2;
+  font-size: 1.25rem;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.image-tile.is-selected .selection-indicator {
+  color: var(--p-primary-color);
+}
+
+.image-tile.selection-mode {
+  cursor: pointer;
 }
 </style>

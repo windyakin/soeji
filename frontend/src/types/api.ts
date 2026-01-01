@@ -15,6 +15,7 @@ export interface SearchHit {
   tags: string[];
   positiveTags: string[];
   negativeTags: string[];
+  userTags: string[];
   weightedTags: WeightedTag[];
   seed: number | null;
   width: number | null;
@@ -88,4 +89,16 @@ export interface TagListItem {
 
 export interface TagsResponse {
   tags: TagListItem[];
+}
+
+// Batch tagging types
+export interface BatchTagRequest {
+  imageIds: string[];
+  tags: string[];
+}
+
+export interface BatchTagResponse {
+  success: boolean;
+  updatedCount: number;
+  tags: string[];
 }

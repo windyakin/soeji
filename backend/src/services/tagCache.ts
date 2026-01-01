@@ -54,12 +54,13 @@ class TagCacheService {
     this.isRefreshing = true;
 
     try {
-      // Fetch all tags with their positive/negative usage counts
+      // Fetch all tags with their positive/negative/user usage counts
       const dbTags = await this.prisma.tag.findMany({
         include: {
           images: {
             select: {
               isNegative: true,
+              source: true,
             },
           },
         },
@@ -69,18 +70,27 @@ class TagCacheService {
       const processedTags: CachedTag[] = [];
 
       for (const tag of dbTags) {
-        const positiveCount = tag.images.filter((it) => !it.isNegative).length;
-        const negativeCount = tag.images.filter((it) => it.isNegative).length;
-        const total = positiveCount + negativeCount;
+        // Count metadata tags (non-user) separately from user tags
+        const metadataPositiveCount = tag.images.filter(
+          (it) => !it.isNegative && it.source !== "user"
+        ).length;
+        const metadataNegativeCount = tag.images.filter(
+          (it) => it.isNegative && it.source !== "user"
+        ).length;
+        const userCount = tag.images.filter((it) => it.source === "user").length;
+        const metadataTotal = metadataPositiveCount + metadataNegativeCount;
 
-        // Only include tags with >50% positive usage
-        if (total > 0 && positiveCount / total > 0.5) {
+        // Include tags with >50% positive metadata usage OR user-created tags
+        const isUserTag = userCount > 0;
+        const isPositiveTag = metadataTotal > 0 && metadataPositiveCount / metadataTotal > 0.5;
+
+        if (isUserTag || isPositiveTag) {
           processedTags.push({
             id: tag.id,
             name: tag.name,
             nameLower: tag.name.toLowerCase(),
             category: tag.category,
-            imageCount: positiveCount,
+            imageCount: metadataPositiveCount + userCount,
           });
         }
       }

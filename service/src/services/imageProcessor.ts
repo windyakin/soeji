@@ -119,6 +119,7 @@ export async function processImage(
       tags: allTagNames,
       positiveTags,
       negativeTags,
+      userTags: [], // Empty for new images, populated via user tagging
       weightedTags,
       seed: promptData.seed,
       width: dimensions?.width ?? promptData.width,
