@@ -542,8 +542,11 @@ function handleTouchEnd(e: TouchEvent) {
 }
 
 .lightbox-image.fullscreen {
-  max-width: 100vw;
-  max-height: 100vh;
+  max-width: none;
+  max-height: none;
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
 }
 
 .lightbox-footer {
