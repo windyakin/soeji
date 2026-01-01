@@ -32,3 +32,11 @@ export function getThumbnailUrl(
   }
   return s3Url;
 }
+
+/**
+ * オリジナル画像をダウンロードするためのURLを生成する
+ * converterを経由して非劣化のデータをそのまま返す
+ */
+export function getDownloadUrl(s3Url: string): string {
+  return `${s3Url}?download=1`;
+}

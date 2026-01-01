@@ -2,6 +2,7 @@
 import { computed, ref, watch, nextTick, onUnmounted } from "vue";
 import Button from "primevue/button";
 import type { SearchHit } from "../types/api";
+import { getDownloadUrl } from "../utils/image";
 
 const props = defineProps<{
   images: SearchHit[];
@@ -31,6 +32,11 @@ const isSwiping = ref(false);
 const swipeThreshold = 50; // minimum distance for swipe
 
 const currentImage = computed(() => props.images[props.currentIndex]);
+
+const downloadUrl = computed(() => {
+  if (!currentImage.value) return "";
+  return getDownloadUrl(currentImage.value.s3Url);
+});
 
 // Reset loading state when image changes
 watch(
@@ -232,15 +238,16 @@ function handleTouchEnd(e: TouchEvent) {
       >
         <!-- Normal mode header -->
         <div v-if="!isFullscreen" class="lightbox-header">
-          <Button
-            icon="pi pi-expand"
-            severity="secondary"
-            text
-            rounded
-            class="header-button"
-            @click="enterFullscreen"
-            aria-label="Enter fullscreen"
-          />
+          <a :href="downloadUrl" class="download-link">
+            <Button
+              icon="pi pi-download"
+              severity="secondary"
+              text
+              rounded
+              class="header-button"
+              aria-label="Download original"
+            />
+          </a>
           <Button
             icon="pi pi-info-circle"
             severity="secondary"
@@ -249,6 +256,15 @@ function handleTouchEnd(e: TouchEvent) {
             class="header-button"
             @click="showInfo"
             aria-label="Show image info"
+          />
+          <Button
+            icon="pi pi-expand"
+            severity="secondary"
+            text
+            rounded
+            class="header-button"
+            @click="enterFullscreen"
+            aria-label="Enter fullscreen"
           />
           <Button
             icon="pi pi-times"
@@ -351,6 +367,11 @@ function handleTouchEnd(e: TouchEvent) {
   display: flex;
   gap: 0.5rem;
   z-index: 10;
+}
+
+.download-link {
+  text-decoration: none;
+  display: flex;
 }
 
 .header-button {

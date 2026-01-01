@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -40,6 +41,12 @@ func (s *AppState) ImageHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters
 	query := r.URL.Query()
+
+	// Check for download mode (passthrough without conversion)
+	if query.Get("download") == "1" {
+		s.handleDownload(w, r, ctx, bucket, key)
+		return
+	}
 
 	var width, height *uint32
 	if widthStr := query.Get("w"); widthStr != "" {
@@ -158,4 +165,44 @@ func determineFormat(accept string) OutputFormat {
 		return OutputFormatWebP
 	}
 	return OutputFormatPNG
+}
+
+func (s *AppState) handleDownload(w http.ResponseWriter, r *http.Request, ctx context.Context, bucket, key string) {
+	// Fetch image from S3 without any conversion
+	log.Printf("Download request: bucket=%s, key=%s", bucket, key)
+	data, err := s.S3Client.GetObject(ctx, bucket, key)
+	if err != nil {
+		if _, ok := err.(*NotFoundError); ok {
+			http.Error(w, "Image not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("S3 error: %v", err)
+		http.Error(w, "Failed to fetch image from storage", http.StatusBadGateway)
+		return
+	}
+
+	// Determine content type from file extension
+	contentType := "application/octet-stream"
+	if strings.HasSuffix(strings.ToLower(key), ".png") {
+		contentType = "image/png"
+	} else if strings.HasSuffix(strings.ToLower(key), ".jpg") || strings.HasSuffix(strings.ToLower(key), ".jpeg") {
+		contentType = "image/jpeg"
+	} else if strings.HasSuffix(strings.ToLower(key), ".webp") {
+		contentType = "image/webp"
+	} else if strings.HasSuffix(strings.ToLower(key), ".gif") {
+		contentType = "image/gif"
+	}
+
+	// Extract filename from key (last segment after /)
+	// This is safe as the key comes from S3, not user input
+	parts := strings.Split(key, "/")
+	downloadFilename := parts[len(parts)-1]
+
+	// Set headers for download
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", downloadFilename))
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
