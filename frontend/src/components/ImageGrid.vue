@@ -109,9 +109,13 @@ function isSelected(imageId: string): boolean {
   return props.selectedIds?.has(imageId) ?? false;
 }
 
+// Track if we're currently in a long press to block context menu
+let isLongPressing = false;
+
 // Touch event handlers for long press
 function handleTouchStart(index: number, event: TouchEvent) {
   longPressTriggered = false;
+  isLongPressing = true;
   const touch = event.touches[0];
   if (!touch) return;
   touchStartPos = { x: touch.clientX, y: touch.clientY };
@@ -146,11 +150,19 @@ function handleTouchEnd(event: TouchEvent) {
     clearTimeout(longPressTimer);
     longPressTimer = null;
   }
+  isLongPressing = false;
 
   // If long press was triggered, prevent the click
   if (longPressTriggered) {
     event.preventDefault();
     longPressTriggered = false;
+  }
+}
+
+// Prevent context menu during long press (blocks browser's "save image" menu)
+function handleContextMenu(event: Event) {
+  if (isLongPressing || longPressTriggered) {
+    event.preventDefault();
   }
 }
 
@@ -214,10 +226,11 @@ onUnmounted(() => {
           :class="{ 'is-selected': isSelected(image.id), 'selection-mode': selectionMode }"
           :style="getItemStyle(index)"
           @click="handleImageClick(index, $event)"
-          @touchstart.passive="handleTouchStart(index, $event)"
+          @touchstart="handleTouchStart(index, $event)"
           @touchmove.passive="handleTouchMove($event)"
-          @touchend="handleTouchEnd($event)"
-          @touchcancel="handleTouchEnd($event)"
+          @touchend="handleTouchEnd"
+          @touchcancel="handleTouchEnd"
+          @contextmenu="handleContextMenu($event)"
         >
           <div v-if="selectionMode" class="selection-indicator">
             <i :class="isSelected(image.id) ? 'pi pi-check-circle' : 'pi pi-circle'" />
