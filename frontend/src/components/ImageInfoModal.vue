@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { useConfirm } from "primevue/useconfirm";
 import Dialog from "primevue/dialog";
+import ConfirmDialog from "primevue/confirmdialog";
+import Button from "primevue/button";
 import Tag from "primevue/tag";
 import type { SearchHit } from "../types/api";
+import { deleteImage } from "../composables/useApi";
 
 const props = defineProps<{
   image: SearchHit | null;
@@ -12,7 +16,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:visible": [value: boolean];
   searchTag: [tag: string];
+  deleted: [imageId: string];
 }>();
+
+const confirm = useConfirm();
+const deleting = ref(false);
 
 const dialogVisible = computed({
   get: () => props.visible,
@@ -30,6 +38,38 @@ function close() {
 function handleTagClick(tag: string) {
   emit("searchTag", tag);
   close();
+}
+
+function handleDelete() {
+  if (!props.image) return;
+
+  confirm.require({
+    message: "Are you sure you want to delete this image?",
+    header: "Delete Image",
+    icon: "pi pi-exclamation-triangle",
+    rejectProps: {
+      label: "Cancel",
+      severity: "secondary",
+      outlined: true,
+    },
+    acceptProps: {
+      label: "Delete",
+      severity: "danger",
+    },
+    accept: async () => {
+      if (!props.image) return;
+      deleting.value = true;
+      try {
+        await deleteImage(props.image.id);
+        emit("deleted", props.image.id);
+        close();
+      } catch (error) {
+        console.error("Failed to delete image:", error);
+      } finally {
+        deleting.value = false;
+      }
+    },
+  });
 }
 </script>
 
@@ -118,8 +158,20 @@ function handleTagClick(tag: string) {
           {{ image.s3Url }}
         </a>
       </div>
+
+      <!-- Delete button -->
+      <div class="info-section delete-section">
+        <Button
+          label="Delete Image"
+          icon="pi pi-trash"
+          severity="danger"
+          :loading="deleting"
+          @click="handleDelete"
+        />
+      </div>
     </div>
   </Dialog>
+  <ConfirmDialog />
 </template>
 
 <style scoped>
@@ -206,5 +258,11 @@ function handleTagClick(tag: string) {
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
+}
+
+.delete-section {
+  border-top: 1px solid var(--p-surface-200);
+  padding-top: 1rem;
+  margin-top: 0.5rem;
 }
 </style>

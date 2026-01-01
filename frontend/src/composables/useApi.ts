@@ -37,6 +37,17 @@ export async function removeTagFromImage(
   }
 }
 
+export async function deleteImage(imageId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/images/${imageId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Failed to delete image" }));
+    throw new Error(error.error || "Failed to delete image");
+  }
+}
+
 export type SearchMode = "or" | "and";
 
 export function useInfiniteSearch() {
