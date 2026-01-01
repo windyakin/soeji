@@ -73,21 +73,20 @@ export function usePwaUpdate() {
   }
 
   async function updateServiceWorker() {
-    // Trigger SW update check
-    if (swRegistration) {
-      await swRegistration.update();
-    }
-
     // Update stored commit before reload
     const version = await fetchVersion();
     if (version && version.commit !== "unknown") {
       storeCommit(version.commit);
     }
 
-    // Reload the page
-    if (updateSW) {
-      await updateSW(true);
+    // Trigger SW update if available
+    if (swRegistration?.waiting) {
+      // Tell waiting SW to take control immediately
+      swRegistration.waiting.postMessage({ type: "SKIP_WAITING" });
     }
+
+    // Force reload the page to get new content
+    window.location.reload();
   }
 
   function dismissUpdate() {
