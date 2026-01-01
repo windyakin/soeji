@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed, provide } from "vue";
 import SearchBox from "./components/SearchBox.vue";
 import ImageGrid from "./components/ImageGrid.vue";
 import ImageLightbox from "./components/ImageLightbox.vue";
 import ImageInfoModal from "./components/ImageInfoModal.vue";
 import TaggingPanel from "./components/TaggingPanel.vue";
 import PwaUpdatePrompt from "./components/PwaUpdatePrompt.vue";
-import { useInfiniteSearch, addTagsToImages } from "./composables/useApi";
+import { useInfiniteSearch, addTagsToImages, getImageById } from "./composables/useApi";
 import { useSearchParams } from "./composables/useSearchParams";
 import { useImageSelection } from "./composables/useImageSelection";
 import type { SearchHit } from "./types/api";
 
 // URL-synced search params
-const { query: searchQuery, mode: searchMode, isInitialized } = useSearchParams();
+const { query: searchQuery, mode: searchMode, imageId: urlImageId, isInitialized, updateImageId } = useSearchParams();
+
+// Provide updateImageId to child components
+provide("updateImageId", updateImageId);
 
 const {
   images,
@@ -90,9 +93,29 @@ watch([searchQuery, searchMode], ([newQuery, newMode]) => {
 });
 
 // Initial search when params are ready
-watch(isInitialized, (initialized) => {
+watch(isInitialized, async (initialized) => {
   if (initialized) {
-    search(searchQuery.value, searchMode.value);
+    // If imageId is present in URL, load that image and show lightbox
+    if (urlImageId.value) {
+      try {
+        const image = await getImageById(urlImageId.value);
+        // Add the image to the images array if not already present
+        if (!images.value.find((img) => img.id === image.id)) {
+          images.value = [image];
+        }
+        // Open lightbox with this image
+        currentImageIndex.value = images.value.findIndex((img) => img.id === image.id);
+        lightboxVisible.value = true;
+        // Also run the search in the background
+        search(searchQuery.value, searchMode.value);
+      } catch (error) {
+        console.error("Failed to load image from URL:", error);
+        // Fall back to normal search
+        search(searchQuery.value, searchMode.value);
+      }
+    } else {
+      search(searchQuery.value, searchMode.value);
+    }
   }
 });
 

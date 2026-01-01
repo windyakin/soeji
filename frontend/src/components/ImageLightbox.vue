@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onUnmounted } from "vue";
+import { computed, ref, watch, nextTick, onUnmounted, inject } from "vue";
 import Button from "primevue/button";
 import type { SearchHit } from "../types/api";
 import { getDownloadUrl } from "../utils/image";
@@ -20,6 +20,9 @@ const emit = defineEmits<{
   loadMore: [];
   enterFullscreen: [];
 }>();
+
+// Get updateImageId function from parent
+const updateImageId = inject<((imageId: string | null) => void) | undefined>("updateImageId");
 
 const overlayRef = ref<HTMLElement | null>(null);
 const isImageLoading = ref(false);
@@ -64,6 +67,11 @@ watch(
       }
     }, loadingSpinnerDelay);
 
+    // Update URL with current image ID
+    if (updateImageId && currentImage.value) {
+      updateImageId(currentImage.value.id);
+    }
+
     // Re-focus overlay to maintain keyboard control
     await nextTick();
     overlayRef.value?.focus();
@@ -100,6 +108,10 @@ watch(
       if (themeColorMeta) {
         themeColorMeta.setAttribute("content", "#000000");
       }
+      // Update URL with current image ID
+      if (updateImageId && currentImage.value) {
+        updateImageId(currentImage.value.id);
+      }
       await nextTick();
       overlayRef.value?.focus();
     } else {
@@ -108,6 +120,10 @@ watch(
       // Restore original theme color
       if (themeColorMeta) {
         themeColorMeta.setAttribute("content", "#ffffff");
+      }
+      // Clear image ID from URL when lightbox closes
+      if (updateImageId) {
+        updateImageId(null);
       }
     }
   }

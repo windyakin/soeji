@@ -1,7 +1,45 @@
 import { ref, computed } from "vue";
-import type { SearchResponse, SearchHit, BatchTagResponse } from "../types/api";
+import type { SearchResponse, SearchHit, BatchTagResponse, Image } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+// Get single image by ID
+export async function getImageById(imageId: string): Promise<SearchHit> {
+  const response = await fetch(`${API_BASE}/api/images/${imageId}`);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Failed to fetch image" }));
+    throw new Error(error.error || "Failed to fetch image");
+  }
+
+  const image: Image = await response.json();
+
+  // Convert Image to SearchHit format
+  const searchHit: SearchHit = {
+    id: image.id,
+    filename: image.filename,
+    s3Url: image.s3Url,
+    prompt: image.metadata?.prompt || null,
+    v4BaseCaption: image.metadata?.v4BaseCaption || null,
+    v4CharCaptions: image.metadata?.v4CharCaptions || null,
+    tags: image.tags.map((it) => it.tag.name),
+    positiveTags: image.tags.filter((it) => !it.isNegative).map((it) => it.tag.name),
+    negativeTags: image.tags.filter((it) => it.isNegative).map((it) => it.tag.name),
+    userTags: image.tags.filter((it) => it.source === "user").map((it) => it.tag.name),
+    weightedTags: image.tags.map((it) => ({
+      name: it.tag.name,
+      weight: it.weight,
+      isNegative: it.isNegative,
+      source: it.source ?? "unknown",
+    })),
+    seed: image.metadata?.seed || null,
+    width: image.width,
+    height: image.height,
+    createdAt: new Date(image.createdAt).getTime(),
+  };
+
+  return searchHit;
+}
 
 // Batch tagging API functions
 export async function addTagsToImages(
