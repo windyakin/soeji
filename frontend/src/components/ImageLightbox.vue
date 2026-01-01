@@ -124,8 +124,9 @@ function handleKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
     if (isFullscreen.value) {
       exitFullscreen();
+    } else {
+      close();
     }
-    close();
   } else if (e.key === "ArrowLeft") {
     prev();
   } else if (e.key === "ArrowRight") {
@@ -148,9 +149,12 @@ function showInfo() {
   }
 }
 
-function enterFullscreen() {
+async function enterFullscreen() {
   isFullscreen.value = true;
   showFullscreenControls.value = false;
+  // フルスクリーン移行後にフォーカスを再設定
+  await nextTick();
+  overlayRef.value?.focus();
 }
 
 function exitFullscreen() {
