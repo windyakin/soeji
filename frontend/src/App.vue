@@ -41,6 +41,7 @@ const taggingPanelVisible = computed(() => isSelectionMode.value);
 // Lightbox state
 const lightboxVisible = ref(false);
 const currentImageIndex = ref(0);
+const lightboxRef = ref<InstanceType<typeof ImageLightbox> | null>(null);
 
 // Info modal state
 const infoModalVisible = ref(false);
@@ -122,6 +123,20 @@ function handleShowInfo(image: SearchHit) {
   infoModalVisible.value = true;
 }
 
+// Update info panel when navigating images while panel is open
+watch(currentImageIndex, (newIndex) => {
+  if (infoModalVisible.value && images.value[newIndex]) {
+    selectedImageForInfo.value = images.value[newIndex];
+  }
+});
+
+// Close info panel when lightbox is closed
+watch(lightboxVisible, (visible) => {
+  if (!visible) {
+    infoModalVisible.value = false;
+  }
+});
+
 async function handleLoadMoreFromLightbox() {
   if (hasMore.value) {
     await loadMore();
@@ -156,6 +171,16 @@ function handleImageDeleted(imageId: string) {
   images.value = images.value.filter((img) => img.id !== imageId);
   // Also update totalHits
   totalHits.value = Math.max(0, totalHits.value - 1);
+}
+
+function handleInfoPanelShown() {
+  // Restore focus to lightbox after info panel opens
+  lightboxRef.value?.focus();
+}
+
+function handleEnterFullscreen() {
+  // Close info panel when entering fullscreen
+  infoModalVisible.value = false;
 }
 </script>
 
@@ -200,21 +225,25 @@ function handleImageDeleted(imageId: string) {
 
     <!-- Lightbox -->
     <ImageLightbox
+      ref="lightboxRef"
       v-model:visible="lightboxVisible"
       v-model:currentIndex="currentImageIndex"
       :images="images"
       :has-more="hasMore"
       :loading-more="loadingMore"
+      :info-panel-open="infoModalVisible"
       @show-info="handleShowInfo"
       @load-more="handleLoadMoreFromLightbox"
+      @enter-fullscreen="handleEnterFullscreen"
     />
 
-    <!-- Info Modal -->
+    <!-- Info Panel -->
     <ImageInfoModal
       v-model:visible="infoModalVisible"
       :image="selectedImageForInfo"
       @search-tag="handleSearchTag"
       @deleted="handleImageDeleted"
+      @shown="handleInfoPanelShown"
     />
 
     <!-- Tagging Panel -->

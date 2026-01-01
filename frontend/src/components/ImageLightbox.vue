@@ -10,6 +10,7 @@ const props = defineProps<{
   visible: boolean;
   hasMore?: boolean;
   loadingMore?: boolean;
+  infoPanelOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   "update:currentIndex": [value: number];
   showInfo: [image: SearchHit];
   loadMore: [];
+  enterFullscreen: [];
 }>();
 
 const overlayRef = ref<HTMLElement | null>(null);
@@ -43,10 +45,10 @@ const downloadUrl = computed(() => {
   return getDownloadUrl(currentImage.value.s3Url);
 });
 
-// Reset loading state when image changes
+// Reset loading state when image changes and maintain focus
 watch(
   () => currentImage.value?.s3Url,
-  () => {
+  async () => {
     isImageLoading.value = true;
     showLoadingSpinner.value = false;
 
@@ -61,6 +63,10 @@ watch(
         showLoadingSpinner.value = true;
       }
     }, loadingSpinnerDelay);
+
+    // Re-focus overlay to maintain keyboard control
+    await nextTick();
+    overlayRef.value?.focus();
   }
 );
 
@@ -179,6 +185,9 @@ function handleKeydown(e: KeyboardEvent) {
     prev();
   } else if (e.key === "ArrowRight") {
     next();
+  } else if (e.key === "i" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    showInfo();
   }
 }
 
@@ -200,6 +209,7 @@ function showInfo() {
 async function enterFullscreen() {
   isFullscreen.value = true;
   showFullscreenControls.value = false;
+  emit("enterFullscreen");
   // フルスクリーン移行後にフォーカスを再設定
   await nextTick();
   overlayRef.value?.focus();
@@ -262,6 +272,13 @@ function handleTouchEnd(e: TouchEvent) {
 
   isSwiping.value = false;
 }
+
+// Expose focus method for parent components
+function focus() {
+  overlayRef.value?.focus();
+}
+
+defineExpose({ focus });
 </script>
 
 <template>
@@ -270,7 +287,7 @@ function handleTouchEnd(e: TouchEvent) {
       <div
         v-if="visible && currentImage"
         class="lightbox-overlay"
-        :class="{ fullscreen: isFullscreen }"
+        :class="{ fullscreen: isFullscreen, 'panel-open': infoPanelOpen && !isFullscreen }"
         @keydown="handleKeydown"
         @wheel.prevent
         @touchstart="handleTouchStart"
@@ -405,6 +422,26 @@ function handleTouchEnd(e: TouchEvent) {
 
 .lightbox-overlay.fullscreen {
   background: black;
+}
+
+/* Desktop only: shift content when panel is open */
+@media (min-width: 769px) {
+  .lightbox-overlay.panel-open {
+    padding-right: 400px;
+    transition: padding-right 0.3s ease;
+  }
+
+  .lightbox-overlay.panel-open .lightbox-header {
+    right: 400px;
+  }
+
+  .lightbox-overlay.panel-open .nav-right {
+    right: 400px;
+  }
+
+  .lightbox-overlay.panel-open .lightbox-footer {
+    right: 400px;
+  }
 }
 
 .lightbox-header {

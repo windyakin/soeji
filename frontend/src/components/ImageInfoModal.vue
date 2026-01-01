@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useConfirm } from "primevue/useconfirm";
-import Dialog from "primevue/dialog";
+import Drawer from "primevue/drawer";
 import ConfirmDialog from "primevue/confirmdialog";
 import Button from "primevue/button";
 import Tag from "primevue/tag";
@@ -17,14 +17,52 @@ const emit = defineEmits<{
   "update:visible": [value: boolean];
   searchTag: [tag: string];
   deleted: [imageId: string];
+  shown: [];
 }>();
+
+// Emit shown event after drawer opens to allow parent to restore focus
+watch(
+  () => props.visible,
+  async (visible) => {
+    if (visible) {
+      await nextTick();
+      // Small delay to let drawer animation start
+      setTimeout(() => {
+        emit("shown");
+      }, 50);
+    }
+  }
+);
 
 const confirm = useConfirm();
 const deleting = ref(false);
+const isMobile = ref(false);
 
-const dialogVisible = computed({
+const drawerVisible = computed({
   get: () => props.visible,
   set: (value) => emit("update:visible", value),
+});
+
+const drawerPosition = computed(() => (isMobile.value ? "bottom" : "right"));
+
+const drawerStyle = computed(() => {
+  if (isMobile.value) {
+    return { height: "90vh", width: "100%" };
+  }
+  return { width: "400px" };
+});
+
+function checkMobile() {
+  isMobile.value = window.innerWidth <= 768;
+}
+
+onMounted(() => {
+  checkMobile();
+  window.addEventListener("resize", checkMobile);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", checkMobile);
 });
 
 function formatDate(timestamp: number): string {
@@ -74,14 +112,15 @@ function handleDelete() {
 </script>
 
 <template>
-  <Dialog
-    v-model:visible="dialogVisible"
-    modal
+  <Drawer
+    v-model:visible="drawerVisible"
+    :position="drawerPosition"
+    :style="drawerStyle"
     header="Image Details"
-    :style="{ width: '600px', maxWidth: '95vw' }"
-    :breakpoints="{ '640px': '95vw' }"
-    position="center"
-    :draggable="false"
+    :modal="isMobile"
+    :dismissable="isMobile"
+    :closeOnEscape="false"
+    :blockScroll="false"
   >
     <div v-if="image" class="info-content">
       <!-- Basic info -->
@@ -170,7 +209,7 @@ function handleDelete() {
         />
       </div>
     </div>
-  </Dialog>
+  </Drawer>
   <ConfirmDialog />
 </template>
 
@@ -179,18 +218,6 @@ function handleDelete() {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-}
-
-.thumbnail-section {
-  text-align: center;
-}
-
-.thumbnail {
-  max-width: 100%;
-  max-height: 200px;
-  object-fit: contain;
-  border-radius: 8px;
-  background: var(--p-surface-100);
 }
 
 .info-section h4 {
@@ -225,7 +252,7 @@ function handleDelete() {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 150px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
@@ -253,11 +280,6 @@ function handleDelete() {
   color: var(--p-primary-color);
   font-size: 0.875rem;
   word-break: break-all;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
 }
 
 .delete-section {
