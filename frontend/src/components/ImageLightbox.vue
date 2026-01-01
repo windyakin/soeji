@@ -21,9 +21,12 @@ const emit = defineEmits<{
 
 const overlayRef = ref<HTMLElement | null>(null);
 const isImageLoading = ref(false);
+const showLoadingSpinner = ref(false);
 const isFullscreen = ref(false);
 const showFullscreenControls = ref(false);
 let fullscreenControlsTimeout: ReturnType<typeof setTimeout> | null = null;
+let loadingSpinnerTimeout: ReturnType<typeof setTimeout> | null = null;
+const loadingSpinnerDelay = 50; // ms before showing spinner
 
 // Swipe handling
 const touchStartX = ref(0);
@@ -43,15 +46,38 @@ watch(
   () => currentImage.value?.s3Url,
   () => {
     isImageLoading.value = true;
+    showLoadingSpinner.value = false;
+
+    // Clear existing timeout
+    if (loadingSpinnerTimeout) {
+      clearTimeout(loadingSpinnerTimeout);
+    }
+
+    // Show spinner after delay
+    loadingSpinnerTimeout = setTimeout(() => {
+      if (isImageLoading.value) {
+        showLoadingSpinner.value = true;
+      }
+    }, loadingSpinnerDelay);
   }
 );
 
 function onImageLoad() {
   isImageLoading.value = false;
+  showLoadingSpinner.value = false;
+  if (loadingSpinnerTimeout) {
+    clearTimeout(loadingSpinnerTimeout);
+    loadingSpinnerTimeout = null;
+  }
 }
 
 function onImageError() {
   isImageLoading.value = false;
+  showLoadingSpinner.value = false;
+  if (loadingSpinnerTimeout) {
+    clearTimeout(loadingSpinnerTimeout);
+    loadingSpinnerTimeout = null;
+  }
 }
 
 // Lock body scroll when lightbox is visible
@@ -318,17 +344,23 @@ function handleTouchEnd(e: TouchEvent) {
           :class="{ fullscreen: isFullscreen }"
           @click="handleFullscreenCenterTap"
         >
-          <div v-if="isImageLoading" class="loading-spinner">
+          <!-- Center spinner for normal mode -->
+          <div v-if="showLoadingSpinner && !isFullscreen" class="loading-spinner">
             <i class="pi pi-spin pi-spinner"></i>
           </div>
           <img
             :src="currentImage.s3Url"
             :alt="currentImage.filename"
             class="lightbox-image"
-            :class="{ loading: isImageLoading, fullscreen: isFullscreen }"
+            :class="{ loading: showLoadingSpinner && !isFullscreen, fullscreen: isFullscreen }"
             @load="onImageLoad"
             @error="onImageError"
           />
+        </div>
+
+        <!-- Top-right spinner for fullscreen mode -->
+        <div v-if="showLoadingSpinner && isFullscreen" class="fullscreen-loading">
+          <i class="pi pi-spin pi-spinner"></i>
         </div>
 
         <!-- Image counter (hidden in fullscreen) -->
@@ -475,6 +507,25 @@ function handleTouchEnd(e: TouchEvent) {
   font-size: 3rem;
   color: white;
   opacity: 0.8;
+}
+
+.fullscreen-loading {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fullscreen-loading .pi-spinner {
+  font-size: 1.25rem;
+  color: white;
 }
 
 .lightbox-image {
