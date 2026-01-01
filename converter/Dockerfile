@@ -1,7 +1,7 @@
 # Build stage
 FROM golang:1.23-alpine AS builder
 
-RUN apk add --no-cache git gcc musl-dev
+RUN apk add --no-cache gcc musl-dev libwebp-dev
 
 WORKDIR /app
 
@@ -14,16 +14,17 @@ RUN go mod download
 # Copy source code
 COPY converter/*.go ./
 
-# Build for release
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o soeji-converter .
+# Build static binary with CGO
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-w -s -linkmode external -extldflags '-static'" -o soeji-converter .
 
-# Runtime stage
-FROM alpine:3.21
+# Runtime stage - scratch for minimal size
+FROM scratch
 
-RUN apk add --no-cache ca-certificates curl
+# Copy CA certificates for HTTPS
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-COPY --from=builder /app/soeji-converter /usr/local/bin/
+COPY --from=builder /app/soeji-converter /soeji-converter
 
 EXPOSE 8000
 
-CMD ["soeji-converter"]
+ENTRYPOINT ["/soeji-converter"]

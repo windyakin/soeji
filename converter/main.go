@@ -1,12 +1,30 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 )
 
 func main() {
+	// Health check mode for Docker healthcheck
+	healthcheck := flag.Bool("healthcheck", false, "Run health check and exit")
+	flag.Parse()
+
+	if *healthcheck {
+		config := LoadConfig()
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%s/health", config.Port))
+		if err != nil {
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	// Load configuration
 	config := LoadConfig()
 
