@@ -19,8 +19,34 @@ const emit = defineEmits<{
 }>();
 
 const overlayRef = ref<HTMLElement | null>(null);
+const isImageLoading = ref(false);
+const isFullscreen = ref(false);
+const showFullscreenControls = ref(false);
+let fullscreenControlsTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Swipe handling
+const touchStartX = ref(0);
+const touchStartY = ref(0);
+const isSwiping = ref(false);
+const swipeThreshold = 50; // minimum distance for swipe
 
 const currentImage = computed(() => props.images[props.currentIndex]);
+
+// Reset loading state when image changes
+watch(
+  () => currentImage.value?.s3Url,
+  () => {
+    isImageLoading.value = true;
+  }
+);
+
+function onImageLoad() {
+  isImageLoading.value = false;
+}
+
+function onImageError() {
+  isImageLoading.value = false;
+}
 
 // Lock body scroll when lightbox is visible
 watch(
@@ -96,6 +122,9 @@ watch(
 
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
+    if (isFullscreen.value) {
+      exitFullscreen();
+    }
     close();
   } else if (e.key === "ArrowLeft") {
     prev();
@@ -118,6 +147,69 @@ function showInfo() {
     emit("showInfo", currentImage.value);
   }
 }
+
+function enterFullscreen() {
+  isFullscreen.value = true;
+  showFullscreenControls.value = false;
+}
+
+function exitFullscreen() {
+  isFullscreen.value = false;
+  showFullscreenControls.value = false;
+  if (fullscreenControlsTimeout) {
+    clearTimeout(fullscreenControlsTimeout);
+    fullscreenControlsTimeout = null;
+  }
+}
+
+function handleFullscreenCenterTap() {
+  if (!isFullscreen.value) return;
+
+  showFullscreenControls.value = true;
+
+  if (fullscreenControlsTimeout) {
+    clearTimeout(fullscreenControlsTimeout);
+  }
+
+  fullscreenControlsTimeout = setTimeout(() => {
+    showFullscreenControls.value = false;
+    fullscreenControlsTimeout = null;
+  }, 3000);
+}
+
+function handleTouchStart(e: TouchEvent) {
+  const touch = e.touches[0];
+  if (e.touches.length !== 1 || !touch) return;
+  touchStartX.value = touch.clientX;
+  touchStartY.value = touch.clientY;
+  isSwiping.value = true;
+}
+
+function handleTouchEnd(e: TouchEvent) {
+  const touch = e.changedTouches[0];
+  if (!isSwiping.value || e.changedTouches.length !== 1 || !touch) {
+    isSwiping.value = false;
+    return;
+  }
+
+  const touchEndX = touch.clientX;
+  const touchEndY = touch.clientY;
+  const deltaX = touchEndX - touchStartX.value;
+  const deltaY = touchEndY - touchStartY.value;
+
+  // Only trigger swipe if horizontal movement is greater than vertical
+  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
+    if (deltaX > 0) {
+      // Swipe right -> go to previous
+      prev();
+    } else {
+      // Swipe left -> go to next
+      next();
+    }
+  }
+
+  isSwiping.value = false;
+}
 </script>
 
 <template>
@@ -126,14 +218,25 @@ function showInfo() {
       <div
         v-if="visible && currentImage"
         class="lightbox-overlay"
+        :class="{ fullscreen: isFullscreen }"
         @keydown="handleKeydown"
         @wheel.prevent
-        @touchmove.prevent
+        @touchstart="handleTouchStart"
+        @touchend="handleTouchEnd"
         tabindex="0"
         ref="overlayRef"
       >
-        <!-- Close button -->
-        <div class="lightbox-header">
+        <!-- Normal mode header -->
+        <div v-if="!isFullscreen" class="lightbox-header">
+          <Button
+            icon="pi pi-expand"
+            severity="secondary"
+            text
+            rounded
+            class="header-button"
+            @click="enterFullscreen"
+            aria-label="Enter fullscreen"
+          />
           <Button
             icon="pi pi-info-circle"
             severity="secondary"
@@ -154,35 +257,62 @@ function showInfo() {
           />
         </div>
 
+        <!-- Fullscreen mode exit button -->
+        <Transition name="fade">
+          <div v-if="isFullscreen && showFullscreenControls" class="fullscreen-header">
+            <Button
+              icon="pi pi-window-minimize"
+              severity="secondary"
+              text
+              rounded
+              class="header-button"
+              @click="exitFullscreen"
+              aria-label="Exit fullscreen"
+            />
+          </div>
+        </Transition>
+
         <!-- Navigation areas -->
         <div
           class="nav-area nav-left"
-          :class="{ disabled: !hasPrev }"
+          :class="{ disabled: !hasPrev, fullscreen: isFullscreen }"
           @click="(e) => handleNavClick(e, 'left')"
         >
-          <i v-if="hasPrev" class="pi pi-chevron-left nav-icon"></i>
+          <i v-if="hasPrev && !isFullscreen" class="pi pi-chevron-left nav-icon"></i>
         </div>
 
         <div
           class="nav-area nav-right"
-          :class="{ disabled: !hasNext && !canLoadMore, loading: loadingMore }"
+          :class="{ disabled: !hasNext && !canLoadMore, loading: loadingMore, fullscreen: isFullscreen }"
           @click="(e) => handleNavClick(e, 'right')"
         >
-          <i v-if="loadingMore" class="pi pi-spin pi-spinner nav-icon"></i>
-          <i v-else-if="hasNext || canLoadMore" class="pi pi-chevron-right nav-icon"></i>
+          <template v-if="!isFullscreen">
+            <i v-if="loadingMore" class="pi pi-spin pi-spinner nav-icon"></i>
+            <i v-else-if="hasNext || canLoadMore" class="pi pi-chevron-right nav-icon"></i>
+          </template>
         </div>
 
         <!-- Image container -->
-        <div class="lightbox-content">
+        <div
+          class="lightbox-content"
+          :class="{ fullscreen: isFullscreen }"
+          @click="handleFullscreenCenterTap"
+        >
+          <div v-if="isImageLoading" class="loading-spinner">
+            <i class="pi pi-spin pi-spinner"></i>
+          </div>
           <img
             :src="currentImage.s3Url"
             :alt="currentImage.filename"
             class="lightbox-image"
+            :class="{ loading: isImageLoading, fullscreen: isFullscreen }"
+            @load="onImageLoad"
+            @error="onImageError"
           />
         </div>
 
-        <!-- Image counter -->
-        <div class="lightbox-footer">
+        <!-- Image counter (hidden in fullscreen) -->
+        <div v-if="!isFullscreen" class="lightbox-footer">
           <span class="image-counter">
             {{ currentIndex + 1 }} / {{ images.length }}
             <span v-if="hasMore" class="more-indicator">+</span>
@@ -205,6 +335,10 @@ function showInfo() {
   outline: none;
 }
 
+.lightbox-overlay.fullscreen {
+  background: black;
+}
+
 .lightbox-header {
   position: absolute;
   top: 0;
@@ -224,6 +358,14 @@ function showInfo() {
   background: rgba(255, 255, 255, 0.2) !important;
 }
 
+.fullscreen-header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 1rem;
+  z-index: 10;
+}
+
 .nav-area {
   position: absolute;
   top: 0;
@@ -237,7 +379,7 @@ function showInfo() {
   transition: background 0.2s;
 }
 
-.nav-area:not(.disabled):hover {
+.nav-area:not(.disabled):active {
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -247,6 +389,14 @@ function showInfo() {
 
 .nav-area.loading {
   cursor: wait;
+}
+
+.nav-area.fullscreen {
+  background: transparent;
+}
+
+.nav-area.fullscreen:not(.disabled):active {
+  background: transparent;
 }
 
 .nav-left {
@@ -278,6 +428,28 @@ function showInfo() {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+}
+
+.lightbox-content.fullscreen {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+}
+
+.loading-spinner {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.loading-spinner .pi-spinner {
+  font-size: 3rem;
+  color: white;
+  opacity: 0.8;
 }
 
 .lightbox-image {
@@ -286,6 +458,16 @@ function showInfo() {
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
+  transition: opacity 0.2s;
+}
+
+.lightbox-image.loading {
+  opacity: 0;
+}
+
+.lightbox-image.fullscreen {
+  max-width: 100vw;
+  max-height: 100vh;
 }
 
 .lightbox-footer {
@@ -314,6 +496,17 @@ function showInfo() {
 
 .lightbox-enter-from,
 .lightbox-leave-to {
+  opacity: 0;
+}
+
+/* Fade transition for fullscreen controls */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
   opacity: 0;
 }
 </style>
