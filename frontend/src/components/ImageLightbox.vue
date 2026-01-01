@@ -99,7 +99,7 @@ watch(
       document.body.style.overflow = "";
       // Restore original theme color
       if (themeColorMeta) {
-        themeColorMeta.setAttribute("content", "#10B981");
+        themeColorMeta.setAttribute("content", "#ffffff");
       }
     }
   }
@@ -111,7 +111,7 @@ onUnmounted(() => {
   // Restore theme color
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if (themeColorMeta) {
-    themeColorMeta.setAttribute("content", "#10B981");
+    themeColorMeta.setAttribute("content", "#ffffff");
   }
 });
 
