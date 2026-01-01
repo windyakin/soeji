@@ -125,6 +125,8 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        COMMIT_HASH: ${COMMIT_HASH:-unknown}
     container_name: soeji-frontend
     ports:
       - "8080:80"

@@ -1,14 +1,21 @@
 <script setup lang="ts">
+import { onMounted } from "vue";
 import { usePwaUpdate } from "../composables/usePwaUpdate";
 import Button from "primevue/button";
 
 const {
   needRefresh,
   offlineReady,
+  checkForUpdates,
   updateServiceWorker,
   dismissUpdate,
   dismissOfflineReady,
 } = usePwaUpdate();
+
+// Check for updates on mount (page load / reload)
+onMounted(() => {
+  checkForUpdates();
+});
 </script>
 
 <template>
