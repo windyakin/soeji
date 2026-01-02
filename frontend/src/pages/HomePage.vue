@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import Button from "primevue/button";
 import SearchBox from "../components/SearchBox.vue";
 import ImageGrid from "../components/ImageGrid.vue";
 import ImageLightbox from "../components/ImageLightbox.vue";
@@ -311,6 +312,10 @@ function handleEnterFullscreen() {
 function goHome() {
   searchQuery.value = "";
 }
+
+function goToSettings() {
+  router.replace("/settings");
+}
 </script>
 
 <template>
@@ -327,6 +332,13 @@ function goHome() {
         <div class="results-info">
           <span>{{ totalHits }} images found</span>
         </div>
+        <Button
+          icon="pi pi-cog"
+          rounded
+          severity="secondary"
+          @click="goToSettings"
+          aria-label="設定"
+        />
       </div>
     </header>
 
@@ -438,6 +450,8 @@ function goHome() {
   color: var(--p-surface-500);
   font-size: 0.875rem;
   white-space: nowrap;
+  flex: 1;
+  text-align: right;
 }
 
 .app-main {
@@ -483,7 +497,7 @@ function goHome() {
   }
 
   .results-info {
-    margin-left: auto;
+    flex: 0;
   }
 }
 </style>

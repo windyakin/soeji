@@ -1,11 +1,22 @@
 <script setup lang="ts">
-import PwaUpdatePrompt from "./components/PwaUpdatePrompt.vue";
+import { onMounted } from 'vue'
+import Toast from 'primevue/toast'
+import PwaUpdatePrompt from "./components/PwaUpdatePrompt.vue"
+import PinModal from "./components/PinModal.vue"
+import { usePinProtection } from "./composables/usePinProtection"
+
+const { needsUnlock, setupVisibilityListener } = usePinProtection()
+
+onMounted(() => {
+  // Set up listener to lock app when it goes to background
+  setupVisibilityListener()
+})
 </script>
 
 <template>
-  <router-view />
+  <Toast position="bottom-center" :breakpoints="{ '480px': { width: '90vw' } }" />
+  <router-view v-if="!needsUnlock" />
+  <PinModal :visible="needsUnlock" />
   <PwaUpdatePrompt />
 </template>
 
-<style scoped>
-</style>

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import HomePage from "../pages/HomePage.vue";
+import SettingsPage from "../pages/SettingsPage.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -13,6 +14,11 @@ const router = createRouter({
       path: "/gallery/:id",
       name: "gallery",
       component: HomePage,
+    },
+    {
+      path: "/settings",
+      name: "settings",
+      component: SettingsPage,
     },
   ],
 });

@@ -99,6 +99,14 @@ export function usePwaUpdate() {
     offlineReady.value = false;
   }
 
+  async function getVersionInfo(): Promise<VersionInfo | null> {
+    return await fetchVersion();
+  }
+
+  function forceUpdateNotification(): void {
+    needRefresh.value = true;
+  }
+
   return {
     needRefresh,
     offlineReady,
@@ -106,5 +114,7 @@ export function usePwaUpdate() {
     updateServiceWorker,
     dismissUpdate,
     dismissOfflineReady,
+    getVersionInfo,
+    forceUpdateNotification,
   };
 }
