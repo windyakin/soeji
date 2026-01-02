@@ -405,7 +405,7 @@ defineExpose({ focus });
             aria-label="Show image info"
           />
           <Button
-            icon="pi pi-expand"
+            icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
             severity="secondary"
             text
             rounded
@@ -428,7 +428,7 @@ defineExpose({ focus });
         <Transition name="fade">
           <div v-if="isFullscreen && showFullscreenControls" class="fullscreen-header">
             <Button
-              icon="pi pi-window-minimize"
+              icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
               severity="secondary"
               text
               rounded
