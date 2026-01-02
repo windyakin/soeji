@@ -6,27 +6,25 @@ import PinSettings from '../components/PinSettings.vue'
 const router = useRouter()
 
 function goBack() {
-  router.push('/')
+  router.replace('/')
 }
 </script>
 
 <template>
-  <div class="settings-page min-h-screen bg-gray-50 dark:bg-gray-900">
-    <div class="container mx-auto px-4 py-6 max-w-4xl">
-      <div class="flex items-center gap-4 mb-6">
+  <div class="settings-page">
+    <div class="settings-container">
+      <div class="settings-header">
         <Button
           icon="pi pi-arrow-left"
           text
           rounded
           @click="goBack"
-          aria-label="戻る"
+          aria-label="Back"
         />
-        <h1 class="text-3xl font-bold text-gray-800 dark:text-white">
-          設定
-        </h1>
+        <h1>Settings</h1>
       </div>
 
-      <div class="flex flex-col gap-6">
+      <div class="settings-content">
         <PinSettings />
       </div>
     </div>
@@ -36,5 +34,32 @@ function goBack() {
 <style scoped>
 .settings-page {
   min-height: 100vh;
+  background: var(--p-surface-ground);
+}
+
+.settings-container {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.settings-header h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--p-text-color);
+  margin: 0;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 </style>

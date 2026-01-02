@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import Dialog from 'primevue/dialog'
-import InputText from 'primevue/inputtext'
+import InputOtp from 'primevue/inputotp'
 import Button from 'primevue/button'
 import { usePinProtection } from '../composables/usePinProtection'
+
+const PIN_LENGTH = 4
 
 const props = defineProps<{
   visible: boolean
@@ -20,7 +22,7 @@ const pin = ref('')
 const error = ref('')
 const loading = ref(false)
 
-// モーダルが表示されたときにPIN入力をクリア
+// Clear PIN input when modal is shown
 watch(() => props.visible, (visible) => {
   if (visible) {
     pin.value = ''
@@ -28,9 +30,16 @@ watch(() => props.visible, (visible) => {
   }
 })
 
+// Auto-submit when PIN is complete
+watch(pin, (newPin) => {
+  if (newPin && newPin.length === PIN_LENGTH) {
+    handleSubmit()
+  }
+})
+
 async function handleSubmit() {
-  if (!pin.value) {
-    error.value = 'PINを入力してください'
+  if (!pin.value || pin.value.length < PIN_LENGTH) {
+    error.value = 'Please enter your PIN'
     return
   }
 
@@ -43,19 +52,13 @@ async function handleSubmit() {
       emit('unlocked')
       emit('update:visible', false)
     } else {
-      error.value = 'PINが正しくありません'
+      error.value = 'Incorrect PIN'
       pin.value = ''
     }
   } catch (err) {
-    error.value = 'エラーが発生しました'
+    error.value = 'An error occurred'
   } finally {
     loading.value = false
-  }
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Enter') {
-    handleSubmit()
   }
 }
 </script>
@@ -66,33 +69,33 @@ function handleKeydown(event: KeyboardEvent) {
     modal
     :closable="false"
     :draggable="false"
-    header="PIN入力"
+    header="Enter PIN"
     :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
     class="pin-modal"
   >
     <div class="pin-modal-content">
-      <p class="text-gray-700 dark:text-gray-300 mb-4">
-        アプリのロックを解除するためにPINを入力してください
+      <p class="pin-description">
+        Enter your PIN to unlock the app
       </p>
 
-      <div class="flex flex-col gap-2">
-        <InputText
+      <div class="pin-input-container">
+        <InputOtp
           v-model="pin"
-          type="password"
-          inputmode="numeric"
-          placeholder="PINコード"
-          :class="{ 'p-invalid': error }"
+          :length="PIN_LENGTH"
           :disabled="loading"
-          autofocus
-          @keydown="handleKeydown"
+          mask
+          integer-only
+          :invalid="!!error"
         />
 
-        <small v-if="error" class="text-red-500">{{ error }}</small>
+        <small v-if="error" class="pin-error">{{ error }}</small>
       </div>
 
-      <div class="flex justify-end gap-2 mt-4">
+      <div class="pin-actions">
         <Button
-          label="確認"
+          label="Unlock"
+          icon="pi pi-lock-open"
           :loading="loading"
           @click="handleSubmit"
         />
@@ -104,5 +107,28 @@ function handleKeydown(event: KeyboardEvent) {
 <style scoped>
 .pin-modal-content {
   padding: 1rem 0;
+  text-align: center;
+}
+
+.pin-description {
+  color: var(--p-text-muted-color);
+  margin-bottom: 1.5rem;
+}
+
+.pin-input-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pin-error {
+  color: var(--p-red-500);
+}
+
+.pin-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
 }
 </style>

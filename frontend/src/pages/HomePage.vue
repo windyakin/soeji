@@ -314,7 +314,7 @@ function goHome() {
 }
 
 function goToSettings() {
-  router.push("/settings");
+  router.replace("/settings");
 }
 </script>
 

@@ -3,11 +3,13 @@ import { ref, computed } from 'vue'
 const STORAGE_KEY_PIN_HASH = 'soeji-pin-hash'
 const STORAGE_KEY_PIN_ENABLED = 'soeji-pin-enabled'
 
-// セッション状態（アプリがアクティブな間はロック解除状態を維持）
+// Reactive state (synced with localStorage)
+const pinEnabled = ref(localStorage.getItem(STORAGE_KEY_PIN_ENABLED) === 'true')
+const pinHash = ref(localStorage.getItem(STORAGE_KEY_PIN_HASH) || '')
 const isUnlocked = ref(false)
 
 /**
- * PINコードのハッシュ化
+ * Hash a PIN code using SHA-256
  */
 async function hashPin(pin: string): Promise<string> {
   const encoder = new TextEncoder()
@@ -18,32 +20,29 @@ async function hashPin(pin: string): Promise<string> {
 }
 
 export function usePinProtection() {
-  const isPinEnabled = computed(() => {
-    return localStorage.getItem(STORAGE_KEY_PIN_ENABLED) === 'true'
-  })
-
-  const hasPinSet = computed(() => {
-    return !!localStorage.getItem(STORAGE_KEY_PIN_HASH)
-  })
+  const isPinEnabled = computed(() => pinEnabled.value)
+  const hasPinSet = computed(() => !!pinHash.value)
 
   /**
-   * PINを設定する
+   * Set a new PIN
    */
   async function setPin(pin: string): Promise<void> {
     if (!pin || pin.length < 4) {
-      throw new Error('PINは4桁以上で設定してください')
+      throw new Error('PIN must be at least 4 digits')
     }
     const hash = await hashPin(pin)
     localStorage.setItem(STORAGE_KEY_PIN_HASH, hash)
     localStorage.setItem(STORAGE_KEY_PIN_ENABLED, 'true')
+    pinHash.value = hash
+    pinEnabled.value = true
     isUnlocked.value = true
   }
 
   /**
-   * PINを検証する
+   * Verify a PIN
    */
   async function verifyPin(pin: string): Promise<boolean> {
-    const storedHash = localStorage.getItem(STORAGE_KEY_PIN_HASH)
+    const storedHash = pinHash.value
     if (!storedHash) {
       return false
     }
@@ -52,7 +51,7 @@ export function usePinProtection() {
   }
 
   /**
-   * PINでロック解除
+   * Unlock with PIN
    */
   async function unlock(pin: string): Promise<boolean> {
     const isValid = await verifyPin(pin)
@@ -63,34 +62,36 @@ export function usePinProtection() {
   }
 
   /**
-   * ロックする
+   * Lock the app
    */
   function lock(): void {
     isUnlocked.value = false
   }
 
   /**
-   * PIN保護を無効化
+   * Disable PIN protection
    */
   function disablePin(): void {
     localStorage.removeItem(STORAGE_KEY_PIN_HASH)
     localStorage.setItem(STORAGE_KEY_PIN_ENABLED, 'false')
+    pinHash.value = ''
+    pinEnabled.value = false
     isUnlocked.value = true
   }
 
   /**
-   * PINを変更
+   * Change the PIN
    */
   async function changePin(currentPin: string, newPin: string): Promise<void> {
     const isValid = await verifyPin(currentPin)
     if (!isValid) {
-      throw new Error('現在のPINが正しくありません')
+      throw new Error('Incorrect current PIN')
     }
     await setPin(newPin)
   }
 
   /**
-   * アプリがバックグラウンドに行った時にロック
+   * Set up listener to lock app when it goes to background
    */
   function setupVisibilityListener(): void {
     document.addEventListener('visibilitychange', () => {
@@ -101,7 +102,7 @@ export function usePinProtection() {
   }
 
   /**
-   * ロックが必要かチェック
+   * Check if unlock is needed
    */
   const needsUnlock = computed(() => {
     return isPinEnabled.value && !isUnlocked.value
