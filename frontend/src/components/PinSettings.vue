@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import InputOtp from 'primevue/inputotp'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
@@ -12,6 +12,42 @@ import { usePinProtection, type LockLevel } from '../composables/usePinProtectio
 import SettingsCard from './SettingsCard.vue'
 
 const PIN_LENGTH = 4
+
+// Visual viewport handling for keyboard
+const maskHeight = ref('100%')
+
+function updateMaskHeight() {
+  if (window.visualViewport) {
+    const viewportHeight = window.visualViewport.height
+    const heightDiff = window.innerHeight - viewportHeight
+
+    if (heightDiff > 100) {
+      maskHeight.value = `${viewportHeight}px`
+    } else {
+      maskHeight.value = '100%'
+    }
+  } else {
+    maskHeight.value = '100%'
+  }
+}
+
+onMounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateMaskHeight)
+    window.visualViewport.addEventListener('scroll', updateMaskHeight)
+  }
+})
+
+onUnmounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', updateMaskHeight)
+    window.visualViewport.removeEventListener('scroll', updateMaskHeight)
+  }
+})
+
+const dialogPt = computed(() => ({
+  mask: { style: { height: maskHeight.value } }
+}))
 
 const toast = useToast()
 const {
@@ -53,7 +89,6 @@ const authTarget = ref<AuthTarget | null>(null)
 // Form state
 const currentPin = ref('')
 const newPin = ref('')
-const confirmPin = ref('')
 const error = ref('')
 const loading = ref(false)
 
@@ -64,10 +99,16 @@ const editLockDelay = ref(lockDelay.value)
 function resetForm() {
   currentPin.value = ''
   newPin.value = ''
-  confirmPin.value = ''
   error.value = ''
   loading.value = false
 }
+
+// Auto-submit when current PIN is complete (for auth mode only)
+watch(currentPin, (pin) => {
+  if (pin && pin.length === PIN_LENGTH && editMode.value === 'auth') {
+    handleAuth()
+  }
+})
 
 function resetLockSettingsForm() {
   editLockLevel.value = lockLevel.value
@@ -130,11 +171,6 @@ async function handleSetPin() {
     return
   }
 
-  if (newPin.value !== confirmPin.value) {
-    error.value = 'PINs do not match'
-    return
-  }
-
   loading.value = true
 
   try {
@@ -188,11 +224,6 @@ async function handleChangePin() {
 
   if (!newPin.value || newPin.value.length < PIN_LENGTH) {
     error.value = `New PIN must be ${PIN_LENGTH} digits`
-    return
-  }
-
-  if (newPin.value !== confirmPin.value) {
-    error.value = 'New PINs do not match'
     return
   }
 
@@ -340,30 +371,20 @@ function getLockLevelLabel(level: LockLevel): string {
     header="Set PIN"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     :closable="!loading"
     @update:visible="cancelEdit"
   >
     <div class="dialog-content">
+      <p class="info-text">Enter a {{ PIN_LENGTH }}-digit PIN to protect the app.</p>
+
       <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
 
       <div class="pin-input-group">
-        <label>PIN ({{ PIN_LENGTH }} digits)</label>
         <InputOtp
           v-model="newPin"
           :length="PIN_LENGTH"
           :disabled="loading"
-          mask
-          integer-only
-        />
-      </div>
-
-      <div class="pin-input-group">
-        <label>Confirm PIN</label>
-        <InputOtp
-          v-model="confirmPin"
-          :length="PIN_LENGTH"
-          :disabled="loading"
-          mask
           integer-only
         />
       </div>
@@ -380,6 +401,7 @@ function getLockLevelLabel(level: LockLevel): string {
         label="Set PIN"
         icon="pi pi-lock"
         :loading="loading"
+        :disabled="!newPin || newPin.length < PIN_LENGTH"
         @click="handleSetPin"
       />
     </template>
@@ -392,6 +414,7 @@ function getLockLevelLabel(level: LockLevel): string {
     :header="authDialogTitle"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     :closable="!loading"
     @update:visible="cancelEdit"
   >
@@ -406,7 +429,6 @@ function getLockLevelLabel(level: LockLevel): string {
           v-model="currentPin"
           :length="PIN_LENGTH"
           :disabled="loading"
-          mask
           integer-only
         />
       </div>
@@ -419,12 +441,6 @@ function getLockLevelLabel(level: LockLevel): string {
         :disabled="loading"
         @click="cancelEdit"
       />
-      <Button
-        label="Continue"
-        icon="pi pi-arrow-right"
-        :loading="loading"
-        @click="handleAuth"
-      />
     </template>
   </Dialog>
 
@@ -435,30 +451,20 @@ function getLockLevelLabel(level: LockLevel): string {
     header="Change PIN"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     :closable="!loading"
     @update:visible="cancelEdit"
   >
     <div class="dialog-content">
+      <p class="info-text">Enter your new {{ PIN_LENGTH }}-digit PIN.</p>
+
       <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
 
       <div class="pin-input-group">
-        <label>New PIN</label>
         <InputOtp
           v-model="newPin"
           :length="PIN_LENGTH"
           :disabled="loading"
-          mask
-          integer-only
-        />
-      </div>
-
-      <div class="pin-input-group">
-        <label>Confirm New PIN</label>
-        <InputOtp
-          v-model="confirmPin"
-          :length="PIN_LENGTH"
-          :disabled="loading"
-          mask
           integer-only
         />
       </div>
@@ -475,6 +481,7 @@ function getLockLevelLabel(level: LockLevel): string {
         label="Change"
         icon="pi pi-check"
         :loading="loading"
+        :disabled="!newPin || newPin.length < PIN_LENGTH"
         @click="handleChangePin"
       />
     </template>
@@ -487,6 +494,7 @@ function getLockLevelLabel(level: LockLevel): string {
     header="Disable PIN Protection"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     @update:visible="cancelEdit"
   >
     <div class="dialog-content">
@@ -518,6 +526,7 @@ function getLockLevelLabel(level: LockLevel): string {
     header="Lock Settings"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     @update:visible="cancelEdit"
   >
     <div class="dialog-content">

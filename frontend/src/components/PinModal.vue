@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputOtp from 'primevue/inputotp'
 import Button from 'primevue/button'
@@ -21,12 +21,49 @@ const { unlock } = usePinProtection()
 const pin = ref('')
 const error = ref('')
 const loading = ref(false)
+const maskHeight = ref('100%')
+
+const dialogPt = computed(() => ({
+  mask: { style: { height: maskHeight.value } }
+}))
+
+// Update mask height based on visual viewport (for keyboard)
+function updateMaskHeight() {
+  if (window.visualViewport) {
+    const viewportHeight = window.visualViewport.height
+    const heightDiff = window.innerHeight - viewportHeight
+
+    // Adjust mask height when keyboard is visible
+    if (heightDiff > 100) {
+      maskHeight.value = `${viewportHeight}px`
+    } else {
+      maskHeight.value = '100%'
+    }
+  } else {
+    maskHeight.value = '100%'
+  }
+}
+
+onMounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateMaskHeight)
+    window.visualViewport.addEventListener('scroll', updateMaskHeight)
+  }
+})
+
+onUnmounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', updateMaskHeight)
+    window.visualViewport.removeEventListener('scroll', updateMaskHeight)
+  }
+})
 
 // Clear PIN input when modal is shown
 watch(() => props.visible, (visible) => {
   if (visible) {
     pin.value = ''
     error.value = ''
+    updateMaskHeight()
   }
 })
 
@@ -72,6 +109,7 @@ async function handleSubmit() {
     header="Enter PIN"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     class="pin-modal"
   >
     <div class="pin-modal-content">
@@ -84,7 +122,6 @@ async function handleSubmit() {
           v-model="pin"
           :length="PIN_LENGTH"
           :disabled="loading"
-          mask
           integer-only
           :invalid="!!error"
         />
