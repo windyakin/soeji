@@ -84,7 +84,6 @@ async function handleSubmit() {
           v-model="pin"
           :length="PIN_LENGTH"
           :disabled="loading"
-          mask
           integer-only
           :invalid="!!error"
         />
