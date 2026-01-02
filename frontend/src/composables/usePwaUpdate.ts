@@ -69,12 +69,6 @@ export function usePwaUpdate() {
   }
 
   async function updateServiceWorker() {
-    // Update stored commit before reload
-    const version = await fetchVersion();
-    if (version && version.commit !== "unknown") {
-      storeCommit(version.commit);
-    }
-
     // Unregister all service workers and clear caches
     if ("serviceWorker" in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
@@ -85,6 +79,12 @@ export function usePwaUpdate() {
     if ("caches" in window) {
       const cacheNames = await caches.keys();
       await Promise.all(cacheNames.map((name) => caches.delete(name)));
+    }
+
+    // Update stored commit before reload
+    const version = await fetchVersion();
+    if (version && version.commit !== "unknown") {
+      storeCommit(version.commit);
     }
 
     // Force hard reload (bypass cache)
