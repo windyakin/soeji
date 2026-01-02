@@ -48,6 +48,7 @@ const infoModalVisible = ref(false);
 const selectedImageForInfo = ref<SearchHit | null>(null);
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let isFirstSearch = ref(true);
 
 /**
  * Check if query ends with an incomplete prefix pattern
@@ -84,16 +85,15 @@ watch([searchQuery, searchMode], ([newQuery, newMode]) => {
     return;
   }
 
+  // Skip debounce for the first search (initial page load)
+  const delay = isFirstSearch.value ? 0 : 300;
+  if (isFirstSearch.value) {
+    isFirstSearch.value = false;
+  }
+
   debounceTimer = setTimeout(() => {
     search(newQuery, newMode);
-  }, 300);
-});
-
-// Initial search when params are ready
-watch(isInitialized, (initialized) => {
-  if (initialized) {
-    search(searchQuery.value, searchMode.value);
-  }
+  }, delay);
 });
 
 // Scroll to top when search results change (but not when loading more)
