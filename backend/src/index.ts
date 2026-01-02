@@ -4,6 +4,7 @@ import cors from "cors";
 import { searchRouter } from "./routes/search.js";
 import { imagesRouter } from "./routes/images.js";
 import { tagsRouter } from "./routes/tags.js";
+import { statsRouter } from "./routes/stats.js";
 import { tagCache } from "./services/tagCache.js";
 
 const app = express();
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use("/api/search", searchRouter);
 app.use("/api/images", imagesRouter);
 app.use("/api/tags", tagsRouter);
+app.use("/api/stats", statsRouter);
 
 // Health check
 app.get("/health", (_req, res) => {

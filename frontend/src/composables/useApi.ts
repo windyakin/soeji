@@ -1,5 +1,5 @@
 import { ref, computed } from "vue";
-import type { SearchResponse, SearchHit, BatchTagResponse } from "../types/api";
+import type { SearchResponse, SearchHit, BatchTagResponse, StatsResponse } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -46,6 +46,17 @@ export async function deleteImage(imageId: string): Promise<void> {
     const error = await response.json().catch(() => ({ error: "Failed to delete image" }));
     throw new Error(error.error || "Failed to delete image");
   }
+}
+
+// Stats API function
+export async function fetchStats(): Promise<StatsResponse> {
+  const response = await fetch(`${API_BASE}/api/stats`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch stats");
+  }
+
+  return response.json();
 }
 
 export type SearchMode = "or" | "and";

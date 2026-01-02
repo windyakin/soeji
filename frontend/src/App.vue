@@ -6,6 +6,7 @@ import ImageLightbox from "./components/ImageLightbox.vue";
 import ImageInfoModal from "./components/ImageInfoModal.vue";
 import TaggingPanel from "./components/TaggingPanel.vue";
 import PwaUpdatePrompt from "./components/PwaUpdatePrompt.vue";
+import StatsDashboard from "./components/StatsDashboard.vue";
 import { useInfiniteSearch, addTagsToImages } from "./composables/useApi";
 import { useSearchParams } from "./composables/useSearchParams";
 import { useImageSelection } from "./composables/useImageSelection";
@@ -13,6 +14,9 @@ import type { SearchHit } from "./types/api";
 
 // URL-synced search params
 const { query: searchQuery, mode: searchMode, isInitialized } = useSearchParams();
+
+// Show dashboard only when not searching
+const showDashboard = computed(() => !searchQuery.value.trim());
 
 const {
   images,
@@ -250,6 +254,9 @@ function handleEnterFullscreen() {
     </header>
 
     <main class="app-main">
+      <!-- Stats Dashboard (shown only when not searching) -->
+      <StatsDashboard v-if="showDashboard" @search-tag="handleSearchTag" />
+
       <section class="results-section">
         <ImageGrid
           :images="images"
