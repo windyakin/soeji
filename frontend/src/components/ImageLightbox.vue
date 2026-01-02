@@ -30,6 +30,12 @@ let fullscreenControlsTimeout: ReturnType<typeof setTimeout> | null = null;
 let loadingSpinnerTimeout: ReturnType<typeof setTimeout> | null = null;
 const loadingSpinnerDelay = 50; // ms before showing spinner
 
+// Preload状態の管理
+const isNextImageLoaded = ref(false);
+const isPrevImageLoaded = ref(false);
+const isNextImageLoading = ref(false);
+const isPrevImageLoading = ref(false);
+
 // Swipe handling
 const touchStartX = ref(0);
 const touchStartY = ref(0);
@@ -50,19 +56,7 @@ watch(
   () => currentImage.value?.s3Url,
   async () => {
     isImageLoading.value = true;
-    showLoadingSpinner.value = false;
-
-    // Clear existing timeout
-    if (loadingSpinnerTimeout) {
-      clearTimeout(loadingSpinnerTimeout);
-    }
-
-    // Show spinner after delay
-    loadingSpinnerTimeout = setTimeout(() => {
-      if (isImageLoading.value) {
-        showLoadingSpinner.value = true;
-      }
-    }, loadingSpinnerDelay);
+    updateLoadingSpinner();
 
     // Re-focus overlay to maintain keyboard control
     await nextTick();
@@ -70,22 +64,84 @@ watch(
   }
 );
 
-function onImageLoad() {
-  isImageLoading.value = false;
+// Reset preload state when next image changes
+watch(
+  () => nextImage.value?.s3Url,
+  (newUrl) => {
+    isNextImageLoaded.value = false;
+    isNextImageLoading.value = !!newUrl;
+    if (newUrl) {
+      updateLoadingSpinner();
+    }
+  }
+);
+
+// Reset preload state when prev image changes
+watch(
+  () => prevImage.value?.s3Url,
+  (newUrl) => {
+    isPrevImageLoaded.value = false;
+    isPrevImageLoading.value = !!newUrl;
+    if (newUrl) {
+      updateLoadingSpinner();
+    }
+  }
+);
+
+// Update loading spinner based on any loading activity
+function updateLoadingSpinner() {
   showLoadingSpinner.value = false;
+
+  // Clear existing timeout
   if (loadingSpinnerTimeout) {
     clearTimeout(loadingSpinnerTimeout);
-    loadingSpinnerTimeout = null;
   }
+
+  // Check if any image is loading
+  const anyImageLoading = isImageLoading.value || isNextImageLoading.value || isPrevImageLoading.value;
+
+  if (anyImageLoading) {
+    // Show spinner after delay
+    loadingSpinnerTimeout = setTimeout(() => {
+      if (isImageLoading.value || isNextImageLoading.value || isPrevImageLoading.value) {
+        showLoadingSpinner.value = true;
+      }
+    }, loadingSpinnerDelay);
+  }
+}
+
+function onImageLoad() {
+  isImageLoading.value = false;
+  updateLoadingSpinner();
 }
 
 function onImageError() {
   isImageLoading.value = false;
-  showLoadingSpinner.value = false;
-  if (loadingSpinnerTimeout) {
-    clearTimeout(loadingSpinnerTimeout);
-    loadingSpinnerTimeout = null;
-  }
+  updateLoadingSpinner();
+}
+
+function onNextImageLoad() {
+  isNextImageLoading.value = false;
+  isNextImageLoaded.value = true;
+  updateLoadingSpinner();
+}
+
+function onNextImageError() {
+  isNextImageLoading.value = false;
+  isNextImageLoaded.value = false;
+  updateLoadingSpinner();
+}
+
+function onPrevImageLoad() {
+  isPrevImageLoading.value = false;
+  isPrevImageLoaded.value = true;
+  updateLoadingSpinner();
+}
+
+function onPrevImageError() {
+  isPrevImageLoading.value = false;
+  isPrevImageLoaded.value = false;
+  updateLoadingSpinner();
 }
 
 // Lock body scroll and update theme-color when lightbox is visible
@@ -139,6 +195,9 @@ function close() {
 function prev() {
   if (isNavigating.value || !hasPrev.value) return;
 
+  // プリロード画像が読み込まれていない場合は進まない
+  if (!isPrevImageLoaded.value) return;
+
   isNavigating.value = true;
   emit("update:currentIndex", props.currentIndex - 1);
 
@@ -151,6 +210,9 @@ function next() {
   if (isNavigating.value) return;
 
   if (hasNext.value) {
+    // プリロード画像が読み込まれていない場合は進まない
+    if (!isNextImageLoaded.value) return;
+
     isNavigating.value = true;
     emit("update:currentIndex", props.currentIndex + 1);
 
@@ -393,8 +455,22 @@ defineExpose({ focus });
         </div>
 
         <!-- Preload previous and next images -->
-        <img v-show="prevImage" :src="prevImage?.s3Url" class="preload-image" aria-hidden="true" />
-        <img v-show="nextImage" :src="nextImage?.s3Url" class="preload-image" aria-hidden="true" />
+        <img
+          v-show="prevImage"
+          :src="prevImage?.s3Url"
+          class="preload-image"
+          aria-hidden="true"
+          @load="onPrevImageLoad"
+          @error="onPrevImageError"
+        />
+        <img
+          v-show="nextImage"
+          :src="nextImage?.s3Url"
+          class="preload-image"
+          aria-hidden="true"
+          @load="onNextImageLoad"
+          @error="onNextImageError"
+        />
 
         <!-- Image counter (hidden in fullscreen) -->
         <div v-if="!isFullscreen" class="lightbox-footer">
