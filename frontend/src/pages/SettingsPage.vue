@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import PinSettings from '../components/PinSettings.vue'
+import VersionInfo from '../components/VersionInfo.vue'
 
 const router = useRouter()
 
@@ -26,6 +27,7 @@ function goBack() {
 
       <div class="settings-content">
         <PinSettings />
+        <VersionInfo />
       </div>
     </div>
   </div>
@@ -40,7 +42,7 @@ function goBack() {
 .settings-container {
   max-width: 48rem;
   margin: 0 auto;
-  padding: 1.5rem 1rem;
+  padding: 1rem 0.65rem;
 }
 
 .settings-header {
@@ -51,10 +53,16 @@ function goBack() {
 }
 
 .settings-header h1 {
-  font-size: 1.875rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--p-text-color);
   margin: 0;
+}
+
+@media (max-width: 768px) {
+  .settings-header h1 {
+    font-size: 1.25rem;
+  }
 }
 
 .settings-content {

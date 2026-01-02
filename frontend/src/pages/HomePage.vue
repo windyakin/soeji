@@ -334,7 +334,6 @@ function goToSettings() {
         </div>
         <Button
           icon="pi pi-cog"
-          text
           rounded
           severity="secondary"
           @click="goToSettings"
@@ -451,6 +450,8 @@ function goToSettings() {
   color: var(--p-surface-500);
   font-size: 0.875rem;
   white-space: nowrap;
+  flex: 1;
+  text-align: right;
 }
 
 .app-main {
@@ -496,7 +497,7 @@ function goToSettings() {
   }
 
   .results-info {
-    margin-left: auto;
+    flex: 0;
   }
 }
 </style>

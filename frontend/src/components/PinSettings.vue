@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import Card from 'primevue/card'
 import InputOtp from 'primevue/inputotp'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
@@ -8,6 +7,7 @@ import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
 import { useToast } from 'primevue/usetoast'
 import { usePinProtection } from '../composables/usePinProtection'
+import SettingsCard from './SettingsCard.vue'
 
 const PIN_LENGTH = 4
 
@@ -153,241 +153,242 @@ async function handleDisablePin() {
     loading.value = false
   }
 }
-
 </script>
 
 <template>
-  <Card>
-    <template #title>
-      <i class="pi pi-lock" style="margin-right: 0.5rem;"></i>
-      PIN Protection
-    </template>
-    <template #subtitle>
-      Require PIN authentication when opening the app. The PIN is stored only on this device.
-    </template>
-    <template #content>
-      <!-- Status display -->
-      <div class="status-row">
+  <SettingsCard header="Security">
+    <!-- PIN Status -->
+    <div class="settings-item">
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-lock item-icon"></i>
+          <div class="item-text">
+            <span class="item-label">PIN Protection</span>
+            <span class="item-description">Require PIN when opening the app</span>
+          </div>
+        </div>
         <Tag
           v-if="isPinEnabled && hasPinSet"
           severity="success"
-          icon="pi pi-check-circle"
-          value="Enabled"
+          value="On"
         />
         <Tag
           v-else
           severity="secondary"
-          icon="pi pi-info-circle"
-          value="Not set"
+          value="Off"
         />
+      </div>
+    </div>
 
-        <div class="action-buttons">
-          <Button
-            v-if="isPinEnabled && hasPinSet"
-            label="Change"
-            icon="pi pi-pencil"
-            text
-            size="small"
-            @click="startChangePin"
-          />
-          <Button
-            v-if="isPinEnabled && hasPinSet"
-            label="Disable"
-            icon="pi pi-times"
-            text
-            size="small"
-            severity="danger"
-            @click="startDisablePin"
-          />
-          <Button
-            v-if="!isPinEnabled || !hasPinSet"
-            label="Set PIN"
-            icon="pi pi-lock"
-            text
-            size="small"
-            @click="startSetPin"
-          />
+    <!-- Set PIN (when not set) -->
+    <button
+      v-if="!isPinEnabled || !hasPinSet"
+      class="settings-item clickable"
+      @click="startSetPin"
+    >
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-plus item-icon"></i>
+          <span class="item-label">Set PIN</span>
         </div>
+        <i class="pi pi-chevron-right item-chevron"></i>
+      </div>
+    </button>
+
+    <!-- Change PIN (when set) -->
+    <button
+      v-if="isPinEnabled && hasPinSet"
+      class="settings-item clickable"
+      @click="startChangePin"
+    >
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-pencil item-icon"></i>
+          <span class="item-label">Change PIN</span>
+        </div>
+        <i class="pi pi-chevron-right item-chevron"></i>
+      </div>
+    </button>
+
+    <!-- Disable PIN (when set) -->
+    <button
+      v-if="isPinEnabled && hasPinSet"
+      class="settings-item clickable danger"
+      @click="startDisablePin"
+    >
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-times item-icon"></i>
+          <span class="item-label">Disable PIN</span>
+        </div>
+        <i class="pi pi-chevron-right item-chevron"></i>
+      </div>
+    </button>
+  </SettingsCard>
+
+  <!-- Set PIN Dialog -->
+  <Dialog
+    :visible="editMode === 'set'"
+    modal
+    header="Set PIN"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :closable="!loading"
+    @update:visible="cancelEdit"
+  >
+    <div class="dialog-content">
+      <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
+
+      <div class="pin-input-group">
+        <label>PIN ({{ PIN_LENGTH }} digits)</label>
+        <InputOtp
+          v-model="newPin"
+          :length="PIN_LENGTH"
+          :disabled="loading"
+          mask
+          integer-only
+        />
       </div>
 
-      <!-- Set PIN Dialog -->
-      <Dialog
-        :visible="editMode === 'set'"
-        modal
-        header="Set PIN"
-        :style="{ width: '400px' }"
-        :breakpoints="{ '480px': '90vw' }"
-        :closable="!loading"
-        @update:visible="cancelEdit"
-      >
-        <div class="dialog-content">
-          <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
+      <div class="pin-input-group">
+        <label>Confirm PIN</label>
+        <InputOtp
+          v-model="confirmPin"
+          :length="PIN_LENGTH"
+          :disabled="loading"
+          mask
+          integer-only
+        />
+      </div>
+    </div>
 
-          <div class="pin-input-group">
-            <label>PIN ({{ PIN_LENGTH }} digits)</label>
-            <InputOtp
-              v-model="newPin"
-              :length="PIN_LENGTH"
-              :disabled="loading"
-              mask
-              integer-only
-            />
-          </div>
-
-          <div class="pin-input-group">
-            <label>Confirm PIN</label>
-            <InputOtp
-              v-model="confirmPin"
-              :length="PIN_LENGTH"
-              :disabled="loading"
-              mask
-              integer-only
-            />
-          </div>
-        </div>
-
-        <template #footer>
-          <Button
-            label="Cancel"
-            text
-            :disabled="loading"
-            @click="cancelEdit"
-          />
-          <Button
-            label="Set PIN"
-            icon="pi pi-lock"
-            :loading="loading"
-            @click="handleSetPin"
-          />
-        </template>
-      </Dialog>
-
-      <!-- Change PIN Dialog -->
-      <Dialog
-        :visible="editMode === 'change'"
-        modal
-        header="Change PIN"
-        :style="{ width: '400px' }"
-        :breakpoints="{ '480px': '90vw' }"
-        :closable="!loading"
-        @update:visible="cancelEdit"
-      >
-        <div class="dialog-content">
-          <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
-
-          <div class="pin-input-group">
-            <label>Current PIN</label>
-            <InputOtp
-              v-model="currentPin"
-              :length="PIN_LENGTH"
-              :disabled="loading"
-              mask
-              integer-only
-            />
-          </div>
-
-          <div class="pin-input-group">
-            <label>New PIN</label>
-            <InputOtp
-              v-model="newPin"
-              :length="PIN_LENGTH"
-              :disabled="loading"
-              mask
-              integer-only
-            />
-          </div>
-
-          <div class="pin-input-group">
-            <label>Confirm New PIN</label>
-            <InputOtp
-              v-model="confirmPin"
-              :length="PIN_LENGTH"
-              :disabled="loading"
-              mask
-              integer-only
-            />
-          </div>
-        </div>
-
-        <template #footer>
-          <Button
-            label="Cancel"
-            text
-            :disabled="loading"
-            @click="cancelEdit"
-          />
-          <Button
-            label="Change"
-            icon="pi pi-check"
-            :loading="loading"
-            @click="handleChangePin"
-          />
-        </template>
-      </Dialog>
-
-      <!-- Disable PIN Dialog -->
-      <Dialog
-        :visible="editMode === 'disable'"
-        modal
-        header="Disable PIN Protection"
-        :style="{ width: '400px' }"
-        :breakpoints="{ '480px': '90vw' }"
-        :closable="!loading"
-        @update:visible="cancelEdit"
-      >
-        <div class="dialog-content">
-          <p class="warning-text">
-            Enter your current PIN to disable PIN protection.
-          </p>
-
-          <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
-
-          <div class="pin-input-group">
-            <label>Current PIN</label>
-            <InputOtp
-              v-model="currentPin"
-              :length="PIN_LENGTH"
-              :disabled="loading"
-              mask
-              integer-only
-            />
-          </div>
-        </div>
-
-        <template #footer>
-          <Button
-            label="Cancel"
-            text
-            :disabled="loading"
-            @click="cancelEdit"
-          />
-          <Button
-            label="Disable"
-            icon="pi pi-times"
-            severity="danger"
-            :loading="loading"
-            @click="handleDisablePin"
-          />
-        </template>
-      </Dialog>
+    <template #footer>
+      <Button
+        label="Cancel"
+        text
+        :disabled="loading"
+        @click="cancelEdit"
+      />
+      <Button
+        label="Set PIN"
+        icon="pi pi-lock"
+        :loading="loading"
+        @click="handleSetPin"
+      />
     </template>
-  </Card>
+  </Dialog>
+
+  <!-- Change PIN Dialog -->
+  <Dialog
+    :visible="editMode === 'change'"
+    modal
+    header="Change PIN"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :closable="!loading"
+    @update:visible="cancelEdit"
+  >
+    <div class="dialog-content">
+      <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
+
+      <div class="pin-input-group">
+        <label>Current PIN</label>
+        <InputOtp
+          v-model="currentPin"
+          :length="PIN_LENGTH"
+          :disabled="loading"
+          mask
+          integer-only
+        />
+      </div>
+
+      <div class="pin-input-group">
+        <label>New PIN</label>
+        <InputOtp
+          v-model="newPin"
+          :length="PIN_LENGTH"
+          :disabled="loading"
+          mask
+          integer-only
+        />
+      </div>
+
+      <div class="pin-input-group">
+        <label>Confirm New PIN</label>
+        <InputOtp
+          v-model="confirmPin"
+          :length="PIN_LENGTH"
+          :disabled="loading"
+          mask
+          integer-only
+        />
+      </div>
+    </div>
+
+    <template #footer>
+      <Button
+        label="Cancel"
+        text
+        :disabled="loading"
+        @click="cancelEdit"
+      />
+      <Button
+        label="Change"
+        icon="pi pi-check"
+        :loading="loading"
+        @click="handleChangePin"
+      />
+    </template>
+  </Dialog>
+
+  <!-- Disable PIN Dialog -->
+  <Dialog
+    :visible="editMode === 'disable'"
+    modal
+    header="Disable PIN Protection"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :closable="!loading"
+    @update:visible="cancelEdit"
+  >
+    <div class="dialog-content">
+      <p class="warning-text">
+        Enter your current PIN to disable PIN protection.
+      </p>
+
+      <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
+
+      <div class="pin-input-group">
+        <label>Current PIN</label>
+        <InputOtp
+          v-model="currentPin"
+          :length="PIN_LENGTH"
+          :disabled="loading"
+          mask
+          integer-only
+        />
+      </div>
+    </div>
+
+    <template #footer>
+      <Button
+        label="Cancel"
+        text
+        :disabled="loading"
+        @click="cancelEdit"
+      />
+      <Button
+        label="Disable"
+        icon="pi pi-times"
+        severity="danger"
+        :loading="loading"
+        @click="handleDisablePin"
+      />
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
-.status-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 0.25rem;
-}
-
 .dialog-content {
   display: flex;
   flex-direction: column;
