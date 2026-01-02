@@ -1,16 +1,19 @@
 import { ref, watch, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import type { SearchMode } from "./useApi";
 
 export function useSearchParams() {
+  const route = useRoute();
+  const router = useRouter();
+
   const query = ref("");
   const mode = ref<SearchMode>("and");
   const isInitialized = ref(false);
 
   // Read URL params on mount
   function initFromUrl() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlQuery = urlParams.get("q") || "";
-    const urlMode = urlParams.get("mode") as SearchMode | null;
+    const urlQuery = (route.query.q as string) || "";
+    const urlMode = route.query.mode as SearchMode | null;
 
     query.value = urlQuery;
     if (urlMode === "or" || urlMode === "and") {
@@ -19,24 +22,24 @@ export function useSearchParams() {
     isInitialized.value = true;
   }
 
-  // Update URL without page reload
+  // Update URL without page reload using router.replace
   function updateUrl(newQuery: string, newMode: SearchMode) {
-    const url = new URL(window.location.href);
+    const newQueryParams: Record<string, string> = {};
 
     if (newQuery) {
-      url.searchParams.set("q", newQuery);
-    } else {
-      url.searchParams.delete("q");
+      newQueryParams.q = newQuery;
     }
 
     if (newMode !== "and") {
-      url.searchParams.set("mode", newMode);
-    } else {
-      url.searchParams.delete("mode");
+      newQueryParams.mode = newMode;
     }
 
-    // Use replaceState to update URL without adding to history
-    window.history.replaceState({}, "", url.toString());
+    // Use router.replace to update URL without adding to history
+    router.replace({
+      name: route.name ?? undefined,
+      params: route.params,
+      query: newQueryParams,
+    });
   }
 
   // Watch for changes and update URL

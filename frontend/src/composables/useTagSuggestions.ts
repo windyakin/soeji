@@ -28,11 +28,17 @@ export interface SuggestionItem extends TagListItem {
 // Current prefix state for suggestions
 const currentPrefix = ref<string>("");
 
+// Current cursor position for word replacement
+const currentWordStart = ref<number>(0);
+const currentWordEnd = ref<number>(0);
+
 export interface UseTagSuggestionsReturn {
   suggestions: ComputedRef<SuggestionItem[]>;
   loading: Ref<boolean>;
   error: Ref<string | null>;
-  fetchSuggestions: (query: string) => Promise<void>;
+  wordStart: Ref<number>;
+  wordEnd: Ref<number>;
+  fetchSuggestions: (query: string, cursorPosition?: number) => Promise<void>;
   clearSuggestions: () => void;
 }
 
@@ -53,7 +59,7 @@ export function useTagSuggestions(): UseTagSuggestionsReturn {
 
   let abortController: AbortController | null = null;
 
-  async function fetchSuggestions(query: string) {
+  async function fetchSuggestions(query: string, cursorPosition?: number) {
     // Cancel previous request
     if (abortController) {
       abortController.abort();
@@ -65,10 +71,16 @@ export function useTagSuggestions(): UseTagSuggestionsReturn {
       return;
     }
 
-    // Extract the last word being typed for suggestion
-    const { word, prefix } = parseLastWord(query);
-    currentPrefix.value = prefix;
+    // Default to end of query if cursor position not specified
+    const cursor = cursorPosition ?? query.length;
 
+    // Extract the word at cursor position
+    const { word, prefix, wordStart, wordEnd } = parseWordAtCursor(query, cursor);
+    currentPrefix.value = prefix;
+    currentWordStart.value = wordStart;
+    currentWordEnd.value = wordEnd;
+
+    // Don't show suggestions if cursor is at a space or between words
     if (!word || word.length < 2) {
       rawSuggestions.value = [];
       return;
@@ -114,6 +126,8 @@ export function useTagSuggestions(): UseTagSuggestionsReturn {
     suggestions,
     loading,
     error,
+    wordStart: currentWordStart,
+    wordEnd: currentWordEnd,
     fetchSuggestions,
     clearSuggestions,
   };
@@ -146,25 +160,42 @@ function isPrefixOnly(input: string): boolean {
 }
 
 /**
- * Parse the last word being typed from the query
- * Returns the word and its prefix (e.g., "p:", "u:", "-p:")
- * Returns empty word if only typing a prefix
+ * Parse the word at cursor position
+ * Returns the word, its prefix, and the word boundaries for replacement
  */
-function parseLastWord(query: string): { word: string; prefix: string } {
-  const trimmed = query.trimEnd();
+function parseWordAtCursor(
+  query: string,
+  cursorPosition: number
+): { word: string; prefix: string; wordStart: number; wordEnd: number } {
+  // Find word boundaries around cursor
+  let wordStart = cursorPosition;
+  let wordEnd = cursorPosition;
 
-  // Find the last space
-  const lastSpaceIndex = trimmed.lastIndexOf(" ");
-  const lastPart = lastSpaceIndex === -1 ? trimmed : trimmed.slice(lastSpaceIndex + 1);
+  // Find start of word (go backwards until space or start)
+  while (wordStart > 0 && query[wordStart - 1] !== " ") {
+    wordStart--;
+  }
+
+  // Find end of word (go forwards until space or end)
+  while (wordEnd < query.length && query[wordEnd] !== " ") {
+    wordEnd++;
+  }
+
+  // Check if cursor is at a space (between words or at end after space)
+  if (wordStart === wordEnd) {
+    return { word: "", prefix: "", wordStart, wordEnd };
+  }
+
+  const wordPart = query.slice(wordStart, wordEnd);
 
   // Check if user is only typing a prefix (p, p:, -p:, etc.)
-  if (isPrefixOnly(lastPart)) {
-    return { word: "", prefix: "" };
+  if (isPrefixOnly(wordPart)) {
+    return { word: "", prefix: "", wordStart, wordEnd };
   }
 
   // Match pattern: optional minus, optional prefix (p/u/n), colon, then word
   // Examples: "cat", "p:cat", "-p:cat", "u:dog"
-  const prefixMatch = lastPart.match(/^(-?)([pun]:)?(.*)$/i);
+  const prefixMatch = wordPart.match(/^(-?)([pun]:)?(.*)$/i);
 
   if (prefixMatch) {
     const minus = prefixMatch[1] || "";
@@ -177,26 +208,36 @@ function parseLastWord(query: string): { word: string; prefix: string } {
     // Build full prefix (e.g., "-p:", "u:", "")
     const fullPrefix = minus + typePrefix;
 
-    return { word, prefix: fullPrefix };
+    return { word, prefix: fullPrefix, wordStart, wordEnd };
   }
 
-  return { word: lastPart, prefix: "" };
+  return { word: wordPart, prefix: "", wordStart, wordEnd };
 }
 
 /**
- * Replace the last word in query with the selected tag
+ * Replace the word at the given position with the selected tag
  * Preserves the prefix (p:, u:, n:, -p:, etc.)
+ * If no prefix was typed, defaults to "p:" (positive tag)
  */
-export function replaceLastWord(query: string, tagName: string, displayPrefix: string): string {
-  const trimmed = query.trimEnd();
-  const lastSpaceIndex = trimmed.lastIndexOf(" ");
-
-  // Build the new query
-  const basePart = lastSpaceIndex === -1 ? "" : trimmed.slice(0, lastSpaceIndex + 1);
-
+export function replaceWordAtPosition(
+  query: string,
+  tagName: string,
+  displayPrefix: string,
+  wordStart: number,
+  wordEnd: number
+): { text: string; cursorPosition: number } {
   // Quote the tag if it contains spaces
   const formattedTag = tagName.includes(" ") ? `"${tagName}"` : tagName;
 
-  // Use the prefix from the suggestion (preserves p:, u:, -p:, etc.)
-  return basePart + displayPrefix + formattedTag + " ";
+  // Use the prefix from the suggestion, or default to "p:" if none was typed
+  const prefix = displayPrefix || "p:";
+  const replacement = prefix + formattedTag + " ";
+
+  // Build the new query
+  const before = query.slice(0, wordStart);
+  const after = query.slice(wordEnd);
+  const newText = before + replacement + after;
+  const newCursorPosition = wordStart + replacement.length;
+
+  return { text: newText, cursorPosition: newCursorPosition };
 }

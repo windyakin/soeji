@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, onMounted, nextTick } from "vue";
 import InputText from "primevue/inputtext";
 import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
 import SelectButton from "primevue/selectbutton";
 import Tag from "primevue/tag";
-import { useTagSuggestions, replaceLastWord } from "../composables/useTagSuggestions";
+import { useTagSuggestions, replaceWordAtPosition } from "../composables/useTagSuggestions";
 
 type SearchMode = "or" | "and";
 
@@ -22,14 +22,39 @@ const modeOptions = [
 ];
 
 // Tag suggestions
-const { suggestions, fetchSuggestions, clearSuggestions } = useTagSuggestions();
+const { suggestions, wordStart, wordEnd, fetchSuggestions, clearSuggestions } = useTagSuggestions();
 const showSuggestions = ref(false);
 const selectedIndex = ref(-1);
 const skipNextFetch = ref(false);
+// Skip initial value from URL params - wait until component is mounted
+const isInitialized = ref(false);
+// Input element reference for cursor position
+const inputRef = ref<{ $el: HTMLInputElement } | null>(null);
+
+onMounted(() => {
+  // Delay initialization to skip any initial URL param values
+  setTimeout(() => {
+    isInitialized.value = true;
+  }, 100);
+});
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-watch(model, (newValue) => {
+function getInputElement(): HTMLInputElement | null {
+  return inputRef.value?.$el ?? null;
+}
+
+function getCursorPosition(): number {
+  const input = getInputElement();
+  return input?.selectionStart ?? model.value.length;
+}
+
+function handleInput() {
+  // Skip fetch if component is not initialized (initial URL param load)
+  if (!isInitialized.value) {
+    return;
+  }
+
   // Skip fetch if we just selected a suggestion
   if (skipNextFetch.value) {
     skipNextFetch.value = false;
@@ -40,9 +65,10 @@ watch(model, (newValue) => {
     clearTimeout(debounceTimer);
   }
   debounceTimer = setTimeout(() => {
-    fetchSuggestions(newValue);
+    const cursorPosition = getCursorPosition();
+    fetchSuggestions(model.value, cursorPosition);
   }, 150);
-});
+}
 
 watch(suggestions, (newSuggestions) => {
   // Only show if not skipping
@@ -67,6 +93,19 @@ function handleBlur() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  // Close suggestions on space or enter (tag confirmation)
+  if (e.key === " " || e.key === "Enter") {
+    // If a suggestion is selected, use it
+    if (showSuggestions.value && selectedIndex.value >= 0) {
+      e.preventDefault();
+      selectSuggestion(selectedIndex.value);
+      return;
+    }
+    // Otherwise, close suggestions (user confirmed input without selection)
+    closeSuggestions();
+    return;
+  }
+
   if (!showSuggestions.value || suggestions.value.length === 0) {
     return;
   }
@@ -80,15 +119,8 @@ function handleKeydown(e: KeyboardEvent) {
       e.preventDefault();
       selectedIndex.value = Math.max(selectedIndex.value - 1, -1);
       break;
-    case "Enter":
-      if (selectedIndex.value >= 0) {
-        e.preventDefault();
-        selectSuggestion(selectedIndex.value);
-      }
-      break;
     case "Escape":
-      showSuggestions.value = false;
-      selectedIndex.value = -1;
+      closeSuggestions();
       break;
     case "Tab":
       if (selectedIndex.value >= 0) {
@@ -99,11 +131,31 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+function closeSuggestions() {
+  showSuggestions.value = false;
+  selectedIndex.value = -1;
+  clearSuggestions();
+}
+
 function selectSuggestion(index: number) {
   const suggestion = suggestions.value[index];
   if (suggestion) {
     skipNextFetch.value = true;
-    model.value = replaceLastWord(model.value, suggestion.name, suggestion.displayPrefix);
+    const { text, cursorPosition } = replaceWordAtPosition(
+      model.value,
+      suggestion.name,
+      suggestion.displayPrefix,
+      wordStart.value,
+      wordEnd.value
+    );
+    model.value = text;
+    // Set cursor position after Vue updates the DOM
+    nextTick(() => {
+      const input = getInputElement();
+      if (input) {
+        input.setSelectionRange(cursorPosition, cursorPosition);
+      }
+    });
     clearSuggestions();
     showSuggestions.value = false;
     selectedIndex.value = -1;
@@ -118,9 +170,11 @@ function selectSuggestion(index: number) {
         <IconField class="search-field">
           <InputIcon class="pi pi-search" />
           <InputText
+            ref="inputRef"
             v-model="model"
             placeholder="Search"
             class="search-input"
+            @input="handleInput"
             @focus="handleFocus"
             @blur="handleBlur"
             @keydown="handleKeydown"
