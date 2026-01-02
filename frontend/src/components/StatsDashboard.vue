@@ -97,7 +97,7 @@ function handleTagClick(tagName: string) {
             @click="handleTagClick(tag.name)"
           >
             <span class="tag-name">{{ tag.name }}</span>
-            <span class="tag-count">{{ tag.count.toLocaleString() }}</span>
+            <span class="tag-count">+{{ tag.count.toLocaleString() }}</span>
           </button>
         </div>
       </div>
