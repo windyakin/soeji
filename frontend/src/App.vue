@@ -96,6 +96,21 @@ watch(isInitialized, (initialized) => {
   }
 });
 
+// Scroll to top when search results change (but not when loading more)
+watch([images, totalHits], ([newImages, newTotal], [oldImages, oldTotal]) => {
+  // Check if this is a new search (first image changed or total count changed)
+  const newFirstId = newImages[0]?.id ?? null;
+  const oldFirstId = oldImages?.[0]?.id ?? null;
+
+  // Scroll to top if:
+  // - There are new images AND
+  // - Either the first image ID changed OR the total count changed
+  //   (meaning it's a new search, not loadMore)
+  if (newFirstId !== null && (newFirstId !== oldFirstId || newTotal !== oldTotal)) {
+    window.scrollTo(0, 0);
+  }
+});
+
 onMounted(() => {
   window.addEventListener("scroll", handleScroll);
 });
