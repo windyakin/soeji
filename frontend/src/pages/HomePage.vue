@@ -334,7 +334,7 @@ function goToSettings() {
         </div>
         <Button
           icon="pi pi-cog"
-          rounded
+          variant="outlined"
           severity="secondary"
           @click="goToSettings"
           aria-label="設定"
