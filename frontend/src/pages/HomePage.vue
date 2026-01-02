@@ -488,16 +488,22 @@ function goToSettings() {
 
   .app-title {
     font-size: 1.25rem;
+    order: 1;
   }
 
   .search-wrapper {
-    order: 3;
+    order: 4;
     flex-basis: 100%;
     max-width: 100%;
   }
 
   .results-info {
-    flex: 0;
+    flex: 1;
+    order: 2;
+  }
+
+  .header-content > :deep(.p-button) {
+    order: 3;
   }
 }
 </style>
