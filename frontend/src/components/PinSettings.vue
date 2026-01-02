@@ -1,22 +1,54 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import InputOtp from 'primevue/inputotp'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
+import Select from 'primevue/select'
+import SelectButton from 'primevue/selectbutton'
 import { useToast } from 'primevue/usetoast'
-import { usePinProtection } from '../composables/usePinProtection'
+import { usePinProtection, type LockLevel } from '../composables/usePinProtection'
 import SettingsCard from './SettingsCard.vue'
 
 const PIN_LENGTH = 4
 
 const toast = useToast()
-const { isPinEnabled, hasPinSet, setPin, changePin, verifyPin, disablePin } = usePinProtection()
+const {
+  isPinEnabled,
+  hasPinSet,
+  lockLevel,
+  lockDelay,
+  setPin,
+  verifyPin,
+  disablePin,
+  setLockLevel,
+  setLockDelay
+} = usePinProtection()
+
+// Lock level options
+const lockLevelOptions = [
+  { label: 'On app reload', value: 'reload' as LockLevel },
+  { label: 'After delay', value: 'delayed' as LockLevel },
+  { label: 'Immediately', value: 'immediate' as LockLevel }
+]
+
+// Lock delay options (minutes)
+const lockDelayOptions = [
+  { label: '1 min', value: 1 },
+  { label: '5 min', value: 5 },
+  { label: '15 min', value: 15 },
+  { label: '30 min', value: 30 },
+  { label: '60 min', value: 60 }
+]
+
+// Auth target: what action requires PIN verification
+type AuthTarget = 'change' | 'disable' | 'lock-settings'
 
 // UI state
-type EditMode = 'none' | 'set' | 'change' | 'disable'
+type EditMode = 'none' | 'set' | 'auth' | 'change' | 'disable' | 'lock-settings'
 const editMode = ref<EditMode>('none')
+const authTarget = ref<AuthTarget | null>(null)
 
 // Form state
 const currentPin = ref('')
@@ -24,6 +56,10 @@ const newPin = ref('')
 const confirmPin = ref('')
 const error = ref('')
 const loading = ref(false)
+
+// Lock settings form state
+const editLockLevel = ref<LockLevel>(lockLevel.value)
+const editLockDelay = ref(lockDelay.value)
 
 function resetForm() {
   currentPin.value = ''
@@ -33,25 +69,58 @@ function resetForm() {
   loading.value = false
 }
 
+function resetLockSettingsForm() {
+  editLockLevel.value = lockLevel.value
+  editLockDelay.value = lockDelay.value
+}
+
 function startSetPin() {
   resetForm()
   editMode.value = 'set'
 }
 
-function startChangePin() {
+function startAuth(target: AuthTarget) {
   resetForm()
-  editMode.value = 'change'
-}
-
-function startDisablePin() {
-  resetForm()
-  editMode.value = 'disable'
+  if (target === 'lock-settings') {
+    resetLockSettingsForm()
+  }
+  authTarget.value = target
+  editMode.value = 'auth'
 }
 
 function cancelEdit() {
   resetForm()
+  authTarget.value = null
   editMode.value = 'none'
 }
+
+// Get dialog title based on auth target
+const authDialogTitle = computed(() => {
+  switch (authTarget.value) {
+    case 'change':
+      return 'Change PIN'
+    case 'disable':
+      return 'Disable PIN'
+    case 'lock-settings':
+      return 'Lock Settings'
+    default:
+      return 'Enter PIN'
+  }
+})
+
+// Get auth dialog description
+const authDialogDescription = computed(() => {
+  switch (authTarget.value) {
+    case 'change':
+      return 'Enter your current PIN to change it.'
+    case 'disable':
+      return 'Enter your PIN to disable PIN protection.'
+    case 'lock-settings':
+      return 'Enter your PIN to change lock settings.'
+    default:
+      return 'Enter your PIN to continue.'
+  }
+})
 
 async function handleSetPin() {
   error.value = ''
@@ -84,47 +153,11 @@ async function handleSetPin() {
   }
 }
 
-async function handleChangePin() {
+async function handleAuth() {
   error.value = ''
 
   if (!currentPin.value || currentPin.value.length < PIN_LENGTH) {
-    error.value = 'Please enter your current PIN'
-    return
-  }
-
-  if (!newPin.value || newPin.value.length < PIN_LENGTH) {
-    error.value = `New PIN must be ${PIN_LENGTH} digits`
-    return
-  }
-
-  if (newPin.value !== confirmPin.value) {
-    error.value = 'New PINs do not match'
-    return
-  }
-
-  loading.value = true
-
-  try {
-    await changePin(currentPin.value, newPin.value)
-    toast.add({
-      severity: 'success',
-      summary: 'Success',
-      detail: 'PIN has been changed',
-      life: 3000
-    })
-    cancelEdit()
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'An error occurred'
-  } finally {
-    loading.value = false
-  }
-}
-
-async function handleDisablePin() {
-  error.value = ''
-
-  if (!currentPin.value || currentPin.value.length < PIN_LENGTH) {
-    error.value = 'Please enter your current PIN'
+    error.value = 'Please enter your PIN'
     return
   }
 
@@ -139,11 +172,38 @@ async function handleDisablePin() {
       return
     }
 
-    disablePin()
+    // Move to target screen
+    if (authTarget.value) {
+      editMode.value = authTarget.value
+    }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'An error occurred'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleChangePin() {
+  error.value = ''
+
+  if (!newPin.value || newPin.value.length < PIN_LENGTH) {
+    error.value = `New PIN must be ${PIN_LENGTH} digits`
+    return
+  }
+
+  if (newPin.value !== confirmPin.value) {
+    error.value = 'New PINs do not match'
+    return
+  }
+
+  loading.value = true
+
+  try {
+    await setPin(newPin.value)
     toast.add({
       severity: 'success',
       summary: 'Success',
-      detail: 'PIN protection has been disabled',
+      detail: 'PIN has been changed',
       life: 3000
     })
     cancelEdit()
@@ -152,6 +212,35 @@ async function handleDisablePin() {
   } finally {
     loading.value = false
   }
+}
+
+function handleDisablePin() {
+  disablePin()
+  toast.add({
+    severity: 'success',
+    summary: 'Success',
+    detail: 'PIN protection has been disabled',
+    life: 3000
+  })
+  cancelEdit()
+}
+
+function handleSaveLockSettings() {
+  setLockLevel(editLockLevel.value)
+  setLockDelay(editLockDelay.value)
+  toast.add({
+    severity: 'success',
+    summary: 'Success',
+    detail: 'Lock settings have been updated',
+    life: 3000
+  })
+  cancelEdit()
+}
+
+// Get current lock level label for display
+function getLockLevelLabel(level: LockLevel): string {
+  const option = lockLevelOptions.find(o => o.value === level)
+  return option?.label || level
 }
 </script>
 
@@ -199,7 +288,7 @@ async function handleDisablePin() {
     <button
       v-if="isPinEnabled && hasPinSet"
       class="settings-item clickable"
-      @click="startChangePin"
+      @click="startAuth('change')"
     >
       <div class="item-content">
         <div class="item-left">
@@ -210,11 +299,29 @@ async function handleDisablePin() {
       </div>
     </button>
 
+    <!-- Lock Settings (when PIN is set) -->
+    <button
+      v-if="isPinEnabled && hasPinSet"
+      class="settings-item clickable"
+      @click="startAuth('lock-settings')"
+    >
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-clock item-icon"></i>
+          <div class="item-text">
+            <span class="item-label">Lock Settings</span>
+            <span class="item-description">{{ getLockLevelLabel(lockLevel) }}{{ lockLevel === 'delayed' ? ` (${lockDelay} min)` : '' }}</span>
+          </div>
+        </div>
+        <i class="pi pi-chevron-right item-chevron"></i>
+      </div>
+    </button>
+
     <!-- Disable PIN (when set) -->
     <button
       v-if="isPinEnabled && hasPinSet"
       class="settings-item clickable danger"
-      @click="startDisablePin"
+      @click="startAuth('disable')"
     >
       <div class="item-content">
         <div class="item-left">
@@ -278,7 +385,50 @@ async function handleDisablePin() {
     </template>
   </Dialog>
 
-  <!-- Change PIN Dialog -->
+  <!-- Common Auth Dialog -->
+  <Dialog
+    :visible="editMode === 'auth'"
+    modal
+    :header="authDialogTitle"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :closable="!loading"
+    @update:visible="cancelEdit"
+  >
+    <div class="dialog-content">
+      <p class="info-text">{{ authDialogDescription }}</p>
+
+      <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
+
+      <div class="pin-input-group">
+        <label>PIN</label>
+        <InputOtp
+          v-model="currentPin"
+          :length="PIN_LENGTH"
+          :disabled="loading"
+          mask
+          integer-only
+        />
+      </div>
+    </div>
+
+    <template #footer>
+      <Button
+        label="Cancel"
+        text
+        :disabled="loading"
+        @click="cancelEdit"
+      />
+      <Button
+        label="Continue"
+        icon="pi pi-arrow-right"
+        :loading="loading"
+        @click="handleAuth"
+      />
+    </template>
+  </Dialog>
+
+  <!-- Change PIN Dialog (after auth) -->
   <Dialog
     :visible="editMode === 'change'"
     modal
@@ -290,17 +440,6 @@ async function handleDisablePin() {
   >
     <div class="dialog-content">
       <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
-
-      <div class="pin-input-group">
-        <label>Current PIN</label>
-        <InputOtp
-          v-model="currentPin"
-          :length="PIN_LENGTH"
-          :disabled="loading"
-          mask
-          integer-only
-        />
-      </div>
 
       <div class="pin-input-group">
         <label>New PIN</label>
@@ -341,31 +480,68 @@ async function handleDisablePin() {
     </template>
   </Dialog>
 
-  <!-- Disable PIN Dialog -->
+  <!-- Disable PIN Confirmation Dialog (after auth) -->
   <Dialog
     :visible="editMode === 'disable'"
     modal
     header="Disable PIN Protection"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
-    :closable="!loading"
     @update:visible="cancelEdit"
   >
     <div class="dialog-content">
       <p class="warning-text">
-        Enter your current PIN to disable PIN protection.
+        Are you sure you want to disable PIN protection?
+        Anyone with access to this device will be able to open the app.
       </p>
+    </div>
 
-      <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
+    <template #footer>
+      <Button
+        label="Cancel"
+        text
+        @click="cancelEdit"
+      />
+      <Button
+        label="Disable"
+        icon="pi pi-times"
+        severity="danger"
+        @click="handleDisablePin"
+      />
+    </template>
+  </Dialog>
 
-      <div class="pin-input-group">
-        <label>Current PIN</label>
-        <InputOtp
-          v-model="currentPin"
-          :length="PIN_LENGTH"
-          :disabled="loading"
-          mask
-          integer-only
+  <!-- Lock Settings Dialog (after auth) -->
+  <Dialog
+    :visible="editMode === 'lock-settings'"
+    modal
+    header="Lock Settings"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    @update:visible="cancelEdit"
+  >
+    <div class="dialog-content">
+      <div class="setting-group">
+        <label class="setting-label">Lock Timing</label>
+        <p class="setting-description">When to require PIN</p>
+        <Select
+          v-model="editLockLevel"
+          :options="lockLevelOptions"
+          option-label="label"
+          option-value="value"
+          class="setting-select"
+        />
+      </div>
+
+      <div v-if="editLockLevel === 'delayed'" class="setting-group">
+        <label class="setting-label">Lock Delay</label>
+        <p class="setting-description">Minutes before locking</p>
+        <SelectButton
+          v-model="editLockDelay"
+          :options="lockDelayOptions"
+          option-label="label"
+          option-value="value"
+          class="setting-select-button"
         />
       </div>
     </div>
@@ -374,15 +550,12 @@ async function handleDisablePin() {
       <Button
         label="Cancel"
         text
-        :disabled="loading"
         @click="cancelEdit"
       />
       <Button
-        label="Disable"
-        icon="pi pi-times"
-        severity="danger"
-        :loading="loading"
-        @click="handleDisablePin"
+        label="Save"
+        icon="pi pi-check"
+        @click="handleSaveLockSettings"
       />
     </template>
   </Dialog>
@@ -408,9 +581,41 @@ async function handleDisablePin() {
   color: var(--p-text-color);
 }
 
-.warning-text {
+.warning-text,
+.info-text {
   color: var(--p-text-muted-color);
   margin: 0 0 1rem 0;
   text-align: center;
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setting-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.setting-description {
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+  margin: 0;
+}
+
+.setting-select {
+  width: 100%;
+}
+
+.setting-select-button {
+  width: 100%;
+  display: flex;
+}
+
+.setting-select-button :deep(.p-togglebutton) {
+  flex: 1;
 }
 </style>
