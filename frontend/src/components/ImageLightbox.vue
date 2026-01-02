@@ -46,10 +46,36 @@ const currentImage = computed(() => props.images[props.currentIndex]);
 const prevImage = computed(() => props.images[props.currentIndex - 1]);
 const nextImage = computed(() => props.images[props.currentIndex + 1]);
 
-const downloadUrl = computed(() => {
-  if (!currentImage.value) return "";
-  return getDownloadUrl(currentImage.value.s3Url);
-});
+const isDownloading = ref(false);
+
+async function downloadImage() {
+  if (!currentImage.value || isDownloading.value) return;
+
+  isDownloading.value = true;
+  try {
+    const downloadUrl = getDownloadUrl(currentImage.value.s3Url);
+    const response = await fetch(downloadUrl);
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = currentImage.value.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Failed to download image:", error);
+  } finally {
+    isDownloading.value = false;
+  }
+}
 
 // Reset loading state when image changes and maintain focus
 watch(
@@ -359,16 +385,16 @@ defineExpose({ focus });
       >
         <!-- Normal mode header -->
         <div v-if="!isFullscreen" class="lightbox-header">
-          <a :href="downloadUrl" class="download-link">
-            <Button
-              icon="pi pi-download"
-              severity="secondary"
-              text
-              rounded
-              class="header-button"
-              aria-label="Download original"
-            />
-          </a>
+          <Button
+            :icon="isDownloading ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
+            severity="secondary"
+            text
+            rounded
+            class="header-button"
+            :disabled="isDownloading"
+            @click="downloadImage"
+            aria-label="Download original"
+          />
           <Button
             icon="pi pi-info-circle"
             severity="secondary"
@@ -528,11 +554,6 @@ defineExpose({ focus });
   display: flex;
   gap: 0.5rem;
   z-index: 10;
-}
-
-.download-link {
-  text-decoration: none;
-  display: flex;
 }
 
 .header-button {
