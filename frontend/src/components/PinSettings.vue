@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import InputOtp from 'primevue/inputotp'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
@@ -12,6 +12,42 @@ import { usePinProtection, type LockLevel } from '../composables/usePinProtectio
 import SettingsCard from './SettingsCard.vue'
 
 const PIN_LENGTH = 4
+
+// Visual viewport handling for keyboard
+const maskHeight = ref('100%')
+
+function updateMaskHeight() {
+  if (window.visualViewport) {
+    const viewportHeight = window.visualViewport.height
+    const heightDiff = window.innerHeight - viewportHeight
+
+    if (heightDiff > 100) {
+      maskHeight.value = `${viewportHeight}px`
+    } else {
+      maskHeight.value = '100%'
+    }
+  } else {
+    maskHeight.value = '100%'
+  }
+}
+
+onMounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateMaskHeight)
+    window.visualViewport.addEventListener('scroll', updateMaskHeight)
+  }
+})
+
+onUnmounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', updateMaskHeight)
+    window.visualViewport.removeEventListener('scroll', updateMaskHeight)
+  }
+})
+
+const dialogPt = computed(() => ({
+  mask: { style: { height: maskHeight.value } }
+}))
 
 const toast = useToast()
 const {
@@ -335,6 +371,7 @@ function getLockLevelLabel(level: LockLevel): string {
     header="Set PIN"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     :closable="!loading"
     @update:visible="cancelEdit"
   >
@@ -377,6 +414,7 @@ function getLockLevelLabel(level: LockLevel): string {
     :header="authDialogTitle"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     :closable="!loading"
     @update:visible="cancelEdit"
   >
@@ -413,6 +451,7 @@ function getLockLevelLabel(level: LockLevel): string {
     header="Change PIN"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     :closable="!loading"
     @update:visible="cancelEdit"
   >
@@ -455,6 +494,7 @@ function getLockLevelLabel(level: LockLevel): string {
     header="Disable PIN Protection"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     @update:visible="cancelEdit"
   >
     <div class="dialog-content">
@@ -486,6 +526,7 @@ function getLockLevelLabel(level: LockLevel): string {
     header="Lock Settings"
     :style="{ width: '400px' }"
     :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
     @update:visible="cancelEdit"
   >
     <div class="dialog-content">

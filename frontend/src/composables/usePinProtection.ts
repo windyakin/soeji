@@ -34,13 +34,28 @@ let delayCheckTimer: ReturnType<typeof setTimeout> | null = null
 
 /**
  * Hash a PIN code using SHA-256
+ * Falls back to simple hash if crypto.subtle is not available (non-HTTPS)
  */
 async function hashPin(pin: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(pin)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  // crypto.subtle is only available in secure contexts (HTTPS or localhost)
+  if (crypto.subtle) {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(pin)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  }
+
+  // Fallback: simple hash for non-secure contexts (e.g., local network HTTP)
+  // This is less secure but allows the feature to work
+  let hash = 0
+  const str = `soeji-pin-salt-${pin}`
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return `fallback-${Math.abs(hash).toString(16).padStart(8, '0')}`
 }
 
 export function usePinProtection() {
