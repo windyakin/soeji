@@ -102,3 +102,19 @@ export interface BatchTagResponse {
   updatedCount: number;
   tags: string[];
 }
+
+// Stats types
+export interface RecentTag {
+  name: string;
+  count: number;
+}
+
+export interface StatsResponse {
+  totalImages: number;
+  totalTags: number;
+  oldestImageDate: string | null;
+  newestImageDate: string | null;
+  recentImages24h: number;
+  recentImages7d: number;
+  recentTags: RecentTag[];
+}
