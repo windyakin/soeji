@@ -7,7 +7,6 @@ const needRefresh = ref(false);
 const offlineReady = ref(false);
 
 let updateSW: ((reloadPage?: boolean) => Promise<void>) | undefined;
-let swRegistration: ServiceWorkerRegistration | undefined;
 
 interface VersionInfo {
   commit: string;
@@ -45,9 +44,6 @@ export function usePwaUpdate() {
       onOfflineReady() {
         offlineReady.value = true;
       },
-      onRegisteredSW(_swUrl, registration) {
-        swRegistration = registration;
-      },
     });
   }
 
@@ -79,13 +75,19 @@ export function usePwaUpdate() {
       storeCommit(version.commit);
     }
 
-    // Trigger SW update if available
-    if (swRegistration?.waiting) {
-      // Tell waiting SW to take control immediately
-      swRegistration.waiting.postMessage({ type: "SKIP_WAITING" });
+    // Unregister all service workers and clear caches
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((r) => r.unregister()));
     }
 
-    // Force reload the page to get new content
+    // Clear all caches
+    if ("caches" in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+    }
+
+    // Force hard reload (bypass cache)
     window.location.reload();
   }
 
