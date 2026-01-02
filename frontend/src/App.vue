@@ -72,9 +72,22 @@ function isIncompletePrefix(query: string): boolean {
   return /^-?[pun]:?$/i.test(lastPart);
 }
 
+// Initial search when params are ready
+watch(isInitialized, (initialized) => {
+  if (initialized && isFirstSearch.value) {
+    isFirstSearch.value = false;
+    search(searchQuery.value, searchMode.value);
+  }
+});
+
 // Watch for search param changes and trigger search
 watch([searchQuery, searchMode], ([newQuery, newMode]) => {
   if (!isInitialized.value) return;
+
+  // Skip the first change triggered by URL initialization
+  if (isFirstSearch.value) {
+    return;
+  }
 
   if (debounceTimer) {
     clearTimeout(debounceTimer);
@@ -85,15 +98,9 @@ watch([searchQuery, searchMode], ([newQuery, newMode]) => {
     return;
   }
 
-  // Skip debounce for the first search (initial page load)
-  const delay = isFirstSearch.value ? 0 : 300;
-  if (isFirstSearch.value) {
-    isFirstSearch.value = false;
-  }
-
   debounceTimer = setTimeout(() => {
     search(newQuery, newMode);
-  }, delay);
+  }, 300);
 });
 
 // Scroll to top when search results change (but not when loading more)
