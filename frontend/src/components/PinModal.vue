@@ -21,40 +21,43 @@ const { unlock } = usePinProtection()
 const pin = ref('')
 const error = ref('')
 const loading = ref(false)
-const maskHeight = ref('100%')
+const dialogMarginTop = ref<string | null>(null)
 
 const dialogPt = computed(() => ({
-  mask: { style: { height: maskHeight.value } }
+  root: dialogMarginTop.value
+    ? { style: { marginTop: dialogMarginTop.value } }
+    : {}
 }))
 
-// Update mask height based on visual viewport (for keyboard)
-function updateMaskHeight() {
+// Update dialog position based on visual viewport (for keyboard)
+function updateDialogPosition() {
   if (window.visualViewport) {
     const viewportHeight = window.visualViewport.height
     const heightDiff = window.innerHeight - viewportHeight
 
-    // Adjust mask height when keyboard is visible
+    // Adjust dialog position when keyboard is visible
     if (heightDiff > 100) {
-      maskHeight.value = `${viewportHeight}px`
+      // Shift dialog up by the keyboard height
+      dialogMarginTop.value = `-${heightDiff}px`
     } else {
-      maskHeight.value = '100%'
+      dialogMarginTop.value = null
     }
   } else {
-    maskHeight.value = '100%'
+    dialogMarginTop.value = null
   }
 }
 
 onMounted(() => {
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', updateMaskHeight)
-    window.visualViewport.addEventListener('scroll', updateMaskHeight)
+    window.visualViewport.addEventListener('resize', updateDialogPosition)
+    window.visualViewport.addEventListener('scroll', updateDialogPosition)
   }
 })
 
 onUnmounted(() => {
   if (window.visualViewport) {
-    window.visualViewport.removeEventListener('resize', updateMaskHeight)
-    window.visualViewport.removeEventListener('scroll', updateMaskHeight)
+    window.visualViewport.removeEventListener('resize', updateDialogPosition)
+    window.visualViewport.removeEventListener('scroll', updateDialogPosition)
   }
 })
 
@@ -63,7 +66,7 @@ watch(() => props.visible, (visible) => {
   if (visible) {
     pin.value = ''
     error.value = ''
-    updateMaskHeight()
+    updateDialogPosition()
   }
 })
 
