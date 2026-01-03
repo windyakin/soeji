@@ -14,16 +14,18 @@ function goBack() {
 <template>
   <div class="settings-page">
     <div class="settings-container">
-      <div class="settings-header">
-        <Button
-          icon="pi pi-arrow-left"
-          text
-          rounded
-          @click="goBack"
-          aria-label="Back"
-        />
-        <h1>Settings</h1>
-      </div>
+      <header class="settings-header">
+        <div class="settings-header-inner">
+          <Button
+            icon="pi pi-arrow-left"
+            text
+            rounded
+            @click="goBack"
+            aria-label="Back"
+          />
+          <h1>Settings</h1>
+        </div>
+      </header>
 
       <div class="settings-content">
         <PinSettings />
@@ -36,7 +38,7 @@ function goBack() {
 <style scoped>
 .settings-page {
   min-height: 100vh;
-  background: var(--p-surface-ground);
+  background: var(--p-surface-0);
 }
 
 .settings-container {
@@ -46,10 +48,22 @@ function goBack() {
 }
 
 .settings-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 10;
+  background: var(--p-surface-0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.settings-header-inner {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 0.5rem 0.65rem;
 }
 
 .settings-header h1 {
@@ -69,5 +83,6 @@ function goBack() {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  padding-top: 3rem;
 }
 </style>
