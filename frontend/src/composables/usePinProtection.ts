@@ -32,6 +32,9 @@ const lockDelay = ref(
 let hiddenTimestamp: number | null = null
 let delayCheckTimer: ReturnType<typeof setTimeout> | null = null
 
+// Track whether visibility listener has been set up
+let visibilityListenerSetup = false
+
 /**
  * Hash a PIN code using SHA-256
  * Falls back to simple hash if crypto.subtle is not available (non-HTTPS)
@@ -148,8 +151,14 @@ export function usePinProtection() {
 
   /**
    * Set up listener to lock app based on lock level
+   * Only sets up the listener once, even if called multiple times
    */
   function setupVisibilityListener(): void {
+    if (visibilityListenerSetup) {
+      return
+    }
+    visibilityListenerSetup = true
+
     document.addEventListener('visibilitychange', () => {
       if (!isPinEnabled.value) return
 

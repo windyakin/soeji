@@ -14,39 +14,41 @@ import SettingsCard from './SettingsCard.vue'
 const PIN_LENGTH = 4
 
 // Visual viewport handling for keyboard
-const maskHeight = ref('100%')
+const dialogMarginTop = ref<string | null>(null)
 
-function updateMaskHeight() {
+function updateDialogPosition() {
   if (window.visualViewport) {
     const viewportHeight = window.visualViewport.height
     const heightDiff = window.innerHeight - viewportHeight
 
     if (heightDiff > 100) {
-      maskHeight.value = `${viewportHeight}px`
+      dialogMarginTop.value = `-${heightDiff}px`
     } else {
-      maskHeight.value = '100%'
+      dialogMarginTop.value = null
     }
   } else {
-    maskHeight.value = '100%'
+    dialogMarginTop.value = null
   }
 }
 
 onMounted(() => {
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', updateMaskHeight)
-    window.visualViewport.addEventListener('scroll', updateMaskHeight)
+    window.visualViewport.addEventListener('resize', updateDialogPosition)
+    window.visualViewport.addEventListener('scroll', updateDialogPosition)
   }
 })
 
 onUnmounted(() => {
   if (window.visualViewport) {
-    window.visualViewport.removeEventListener('resize', updateMaskHeight)
-    window.visualViewport.removeEventListener('scroll', updateMaskHeight)
+    window.visualViewport.removeEventListener('resize', updateDialogPosition)
+    window.visualViewport.removeEventListener('scroll', updateDialogPosition)
   }
 })
 
 const dialogPt = computed(() => ({
-  mask: { style: { height: maskHeight.value } }
+  root: dialogMarginTop.value
+    ? { style: { marginTop: dialogMarginTop.value } }
+    : {}
 }))
 
 const toast = useToast()
@@ -56,7 +58,7 @@ const {
   lockLevel,
   lockDelay,
   setPin,
-  verifyPin,
+  unlock,
   disablePin,
   setLockLevel,
   setLockDelay
@@ -200,7 +202,7 @@ async function handleAuth() {
   loading.value = true
 
   try {
-    const isValid = await verifyPin(currentPin.value)
+    const isValid = await unlock(currentPin.value)
     if (!isValid) {
       error.value = 'Incorrect PIN'
       currentPin.value = ''
