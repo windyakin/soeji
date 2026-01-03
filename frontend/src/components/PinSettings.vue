@@ -56,7 +56,7 @@ const {
   lockLevel,
   lockDelay,
   setPin,
-  verifyPin,
+  unlock,
   disablePin,
   setLockLevel,
   setLockDelay
@@ -200,7 +200,7 @@ async function handleAuth() {
   loading.value = true
 
   try {
-    const isValid = await verifyPin(currentPin.value)
+    const isValid = await unlock(currentPin.value)
     if (!isValid) {
       error.value = 'Incorrect PIN'
       currentPin.value = ''
