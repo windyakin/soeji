@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onUnmounted } from "vue";
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from "vue";
 import Button from "primevue/button";
 import type { SearchHit } from "../types/api";
 import { getDownloadUrl } from "../utils/image";
@@ -203,6 +203,12 @@ onUnmounted(() => {
   if (themeColorMeta) {
     themeColorMeta.setAttribute("content", "#ffffff");
   }
+  // フルスクリーンイベントリスナーを解除
+  document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  // フルスクリーン状態を解除
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  }
 });
 
 const hasPrev = computed(() => props.currentIndex > 0);
@@ -214,7 +220,16 @@ const canLoadMore = computed(() => isAtEnd.value && props.hasMore && !props.load
 const isNavigating = ref(false);
 const navigationCooldown = 200; // ms
 
-function close() {
+async function close() {
+  // フルスクリーン状態を解除してから閉じる
+  if (document.fullscreenElement) {
+    try {
+      await document.exitFullscreen();
+    } catch (error) {
+      console.warn("Exit fullscreen failed:", error);
+    }
+  }
+  isFullscreen.value = false;
   emit("update:visible", false);
 }
 
@@ -295,22 +310,60 @@ function showInfo() {
 }
 
 async function enterFullscreen() {
-  isFullscreen.value = true;
-  showFullscreenControls.value = false;
-  emit("enterFullscreen");
-  // フルスクリーン移行後にフォーカスを再設定
-  await nextTick();
-  overlayRef.value?.focus();
+  try {
+    // ブラウザのフルスクリーンAPIを使用
+    if (overlayRef.value && document.fullscreenEnabled) {
+      await overlayRef.value.requestFullscreen();
+    }
+    isFullscreen.value = true;
+    showFullscreenControls.value = false;
+    emit("enterFullscreen");
+    // フルスクリーン移行後にフォーカスを再設定
+    await nextTick();
+    overlayRef.value?.focus();
+  } catch (error) {
+    // フルスクリーンがサポートされていない場合やユーザーが拒否した場合
+    console.warn("Fullscreen request failed:", error);
+    // フォールバック: CSS的なフルスクリーン表示のみ
+    isFullscreen.value = true;
+    showFullscreenControls.value = false;
+    emit("enterFullscreen");
+  }
 }
 
-function exitFullscreen() {
+async function exitFullscreen() {
   isFullscreen.value = false;
   showFullscreenControls.value = false;
   if (fullscreenControlsTimeout) {
     clearTimeout(fullscreenControlsTimeout);
     fullscreenControlsTimeout = null;
   }
+  // ブラウザのフルスクリーンを解除
+  if (document.fullscreenElement) {
+    try {
+      await document.exitFullscreen();
+    } catch (error) {
+      console.warn("Exit fullscreen failed:", error);
+    }
+  }
 }
+
+// ブラウザのフルスクリーン状態変更を監視（Escキーで終了した場合など）
+function handleFullscreenChange() {
+  if (!document.fullscreenElement && isFullscreen.value) {
+    isFullscreen.value = false;
+    showFullscreenControls.value = false;
+    if (fullscreenControlsTimeout) {
+      clearTimeout(fullscreenControlsTimeout);
+      fullscreenControlsTimeout = null;
+    }
+  }
+}
+
+// フルスクリーンイベントリスナーの登録
+onMounted(() => {
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
+});
 
 function handleFullscreenCenterTap() {
   if (!isFullscreen.value) return;
