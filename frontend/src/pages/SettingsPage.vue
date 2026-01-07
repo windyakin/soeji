@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
+import AccountSettings from '../components/AccountSettings.vue'
 import PinSettings from '../components/PinSettings.vue'
 import FullscreenSettings from '../components/FullscreenSettings.vue'
 import VersionInfo from '../components/VersionInfo.vue'
@@ -29,6 +30,7 @@ function goBack() {
       </header>
 
       <div class="settings-content">
+        <AccountSettings />
         <PinSettings />
         <FullscreenSettings />
         <VersionInfo />

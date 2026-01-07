@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
-import AccountInfo from '../components/AccountInfo.vue'
 import UserManagement from '../components/UserManagement.vue'
 
 const router = useRouter()
@@ -27,7 +26,6 @@ function goBack() {
       </header>
 
       <div class="admin-content">
-        <AccountInfo />
         <UserManagement />
       </div>
     </div>

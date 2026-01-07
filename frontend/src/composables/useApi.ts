@@ -90,6 +90,25 @@ export async function fetchStats(): Promise<StatsResponse> {
   return response.json();
 }
 
+// Change password API function
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  const response = await fetchWithAuth(`${API_BASE}/api/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Failed to change password" }));
+    return { success: false, error: error.error || "Failed to change password" };
+  }
+
+  return { success: true };
+}
+
 export type SearchMode = "or" | "and";
 
 export function useInfiniteSearch() {
