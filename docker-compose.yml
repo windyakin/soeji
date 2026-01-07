@@ -158,6 +158,7 @@ services:
       - S3_PUBLIC_ENDPOINT
       - S3_BUCKET
       - PORT=3000
+      - CORS_ALLOWED_ORIGINS
     depends_on:
       postgres:
         condition: service_healthy
