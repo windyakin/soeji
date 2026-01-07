@@ -1,14 +1,19 @@
 import { ref, computed } from "vue";
 import type { SearchResponse, SearchHit, BatchTagResponse, StatsResponse } from "../types/api";
+import { useBackendSettings } from "./useBackendSettings";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "";
+const { selectedUrl } = useBackendSettings();
+
+function getApiBase(): string {
+  return selectedUrl.value || import.meta.env.VITE_API_BASE || "";
+}
 
 // Batch tagging API functions
 export async function addTagsToImages(
   imageIds: string[],
   tags: string[]
 ): Promise<BatchTagResponse> {
-  const response = await fetch(`${API_BASE}/api/images/tags`, {
+  const response = await fetch(`${getApiBase()}/api/images/tags`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ imageIds, tags }),
@@ -27,7 +32,7 @@ export async function removeTagFromImage(
   tagId: string
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE}/api/images/${imageId}/tags/${tagId}`,
+    `${getApiBase()}/api/images/${imageId}/tags/${tagId}`,
     { method: "DELETE" }
   );
 
@@ -38,7 +43,7 @@ export async function removeTagFromImage(
 }
 
 export async function deleteImage(imageId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/images/${imageId}`, {
+  const response = await fetch(`${getApiBase()}/api/images/${imageId}`, {
     method: "DELETE",
   });
 
@@ -50,7 +55,7 @@ export async function deleteImage(imageId: string): Promise<void> {
 
 // Stats API function
 export async function fetchStats(): Promise<StatsResponse> {
-  const response = await fetch(`${API_BASE}/api/stats`);
+  const response = await fetch(`${getApiBase()}/api/stats`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch stats");
@@ -92,7 +97,7 @@ export function useInfiniteSearch() {
       params.set("offset", "0");
       params.set("mode", searchMode.value);
 
-      const response = await fetch(`${API_BASE}/api/search?${params}`);
+      const response = await fetch(`${getApiBase()}/api/search?${params}`);
       if (!response.ok) {
         throw new Error("Search failed");
       }
@@ -125,7 +130,7 @@ export function useInfiniteSearch() {
       params.set("offset", images.value.length.toString());
       params.set("mode", searchMode.value);
 
-      const response = await fetch(`${API_BASE}/api/search?${params}`);
+      const response = await fetch(`${getApiBase()}/api/search?${params}`);
       if (!response.ok) {
         throw new Error("Failed to load more");
       }

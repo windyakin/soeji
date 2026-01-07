@@ -8,9 +8,11 @@ import ImageLightbox from "../components/ImageLightbox.vue";
 import ImageInfoModal from "../components/ImageInfoModal.vue";
 import TaggingPanel from "../components/TaggingPanel.vue";
 import StatsDashboard from "../components/StatsDashboard.vue";
+import BackendSelector from "../components/BackendSelector.vue";
 import { useInfiniteSearch, addTagsToImages } from "../composables/useApi";
 import { useSearchParams } from "../composables/useSearchParams";
 import { useImageSelection } from "../composables/useImageSelection";
+import { useBackendSettings } from "../composables/useBackendSettings";
 import type { SearchHit } from "../types/api";
 
 const route = useRoute();
@@ -18,6 +20,12 @@ const router = useRouter();
 
 // URL-synced search params
 const { query: searchQuery, mode: searchMode, isInitialized } = useSearchParams();
+
+// Backend settings
+const { loadBackends } = useBackendSettings();
+
+// Key to force re-render of StatsDashboard when backend changes
+const dashboardKey = ref(0);
 
 // Show dashboard only when not searching
 const showDashboard = computed(() => !searchQuery.value.trim());
@@ -210,6 +218,7 @@ watch([images, totalHits], ([newImages, newTotal], [oldImages, oldTotal]) => {
 
 onMounted(() => {
   window.addEventListener("scroll", handleScroll);
+  loadBackends();
 });
 
 onUnmounted(() => {
@@ -316,6 +325,16 @@ function goHome() {
 function goToSettings() {
   router.replace("/settings");
 }
+
+function handleBackendChange() {
+  // Reset search results when backend changes
+  images.value = [];
+  totalHits.value = 0;
+  // Force re-render of StatsDashboard
+  dashboardKey.value++;
+  // Re-trigger search with current query
+  search(searchQuery.value, searchMode.value);
+}
 </script>
 
 <template>
@@ -326,6 +345,7 @@ function goToSettings() {
         <a href="/" class="app-title-link" @click.prevent="goHome">
           <h1 class="app-title">Soeji</h1>
         </a>
+        <BackendSelector @change="handleBackendChange" />
         <div class="search-wrapper">
           <SearchBox v-model="searchQuery" v-model:searchMode="searchMode" :loading="loading" />
         </div>
@@ -344,7 +364,7 @@ function goToSettings() {
 
     <main class="app-main">
       <!-- Stats Dashboard (shown only when not searching) -->
-      <StatsDashboard v-if="showDashboard" @search-tag="handleSearchTag" />
+      <StatsDashboard v-if="showDashboard" :key="dashboardKey" @search-tag="handleSearchTag" />
 
       <section class="results-section">
         <ImageGrid
@@ -491,19 +511,23 @@ function goToSettings() {
     order: 1;
   }
 
+  .header-content > :deep(.backend-selector) {
+    order: 2;
+  }
+
   .search-wrapper {
-    order: 4;
+    order: 5;
     flex-basis: 100%;
     max-width: 100%;
   }
 
   .results-info {
     flex: 1;
-    order: 2;
+    order: 3;
   }
 
   .header-content > :deep(.p-button) {
-    order: 3;
+    order: 4;
   }
 }
 </style>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
+import BackendSettings from '../components/BackendSettings.vue'
 import PinSettings from '../components/PinSettings.vue'
 import VersionInfo from '../components/VersionInfo.vue'
 
@@ -28,6 +29,7 @@ function goBack() {
       </header>
 
       <div class="settings-content">
+        <BackendSettings />
         <PinSettings />
         <VersionInfo />
       </div>
