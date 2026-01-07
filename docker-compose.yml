@@ -158,6 +158,11 @@ services:
       - S3_PUBLIC_ENDPOINT
       - S3_BUCKET
       - PORT=3000
+      # Authentication settings
+      - AUTH_ENABLED
+      - JWT_SECRET
+      - JWT_ACCESS_TOKEN_EXPIRES
+      - JWT_REFRESH_TOKEN_EXPIRES_DAYS
     depends_on:
       postgres:
         condition: service_healthy

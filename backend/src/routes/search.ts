@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { MeiliSearch } from "meilisearch";
+import { authenticate } from "../middleware/auth.js";
+import { allRoles } from "../middleware/roleGuard.js";
 
 const router = Router();
+
+// All search endpoints require authentication (any role)
+router.use(authenticate, allRoles);
 
 const client = new MeiliSearch({
   host: process.env.MEILISEARCH_HOST || "http://localhost:7700",
