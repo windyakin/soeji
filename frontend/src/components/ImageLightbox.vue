@@ -3,6 +3,7 @@ import { computed, ref, watch, nextTick, onMounted, onUnmounted } from "vue";
 import Button from "primevue/button";
 import type { SearchHit } from "../types/api";
 import { getDownloadUrl } from "../utils/image";
+import { useFullscreenSettings } from "../composables/useFullscreenSettings";
 
 const props = defineProps<{
   images: SearchHit[];
@@ -20,6 +21,8 @@ const emit = defineEmits<{
   loadMore: [];
   enterFullscreen: [];
 }>();
+
+const { fullscreenMode } = useFullscreenSettings();
 
 const overlayRef = ref<HTMLElement | null>(null);
 const isImageLoading = ref(false);
@@ -309,26 +312,34 @@ function showInfo() {
   }
 }
 
-async function enterFullscreen() {
-  try {
-    // ブラウザのフルスクリーンAPIを使用
-    if (overlayRef.value && document.fullscreenEnabled) {
-      await overlayRef.value.requestFullscreen();
+async function enterFullscreen(event?: MouseEvent | KeyboardEvent) {
+  const useShift = event?.shiftKey ?? false;
+
+  // デフォルト設定とShiftキーの組み合わせでモードを決定
+  // デフォルトがAPIの場合: Shift押下→CSS、Shift無し→API
+  // デフォルトがCSSの場合: Shift押下→API、Shift無し→CSS
+  const shouldUseApi = fullscreenMode.value === 'api' ? !useShift : useShift;
+
+  if (shouldUseApi) {
+    try {
+      // ブラウザのフルスクリーンAPIを使用
+      if (overlayRef.value && document.fullscreenEnabled) {
+        await overlayRef.value.requestFullscreen();
+      }
+    } catch (error) {
+      // フルスクリーンがサポートされていない場合やユーザーが拒否した場合
+      console.warn("Fullscreen request failed:", error);
     }
-    isFullscreen.value = true;
-    showFullscreenControls.value = false;
-    emit("enterFullscreen");
-    // フルスクリーン移行後にフォーカスを再設定
-    await nextTick();
-    overlayRef.value?.focus();
-  } catch (error) {
-    // フルスクリーンがサポートされていない場合やユーザーが拒否した場合
-    console.warn("Fullscreen request failed:", error);
-    // フォールバック: CSS的なフルスクリーン表示のみ
-    isFullscreen.value = true;
-    showFullscreenControls.value = false;
-    emit("enterFullscreen");
   }
+  // CSSモードの場合はAPI呼び出しをスキップ（CSSクラスのみで対応）
+
+  isFullscreen.value = true;
+  showFullscreenControls.value = false;
+  emit("enterFullscreen");
+
+  // フルスクリーン移行後にフォーカスを再設定
+  await nextTick();
+  overlayRef.value?.focus();
 }
 
 async function exitFullscreen() {
@@ -463,7 +474,7 @@ defineExpose({ focus });
             text
             rounded
             class="header-button"
-            @click="enterFullscreen"
+            @click="enterFullscreen($event)"
             aria-label="Enter fullscreen"
           />
           <Button
