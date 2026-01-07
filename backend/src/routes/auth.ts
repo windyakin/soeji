@@ -8,7 +8,7 @@ import {
   revokeRefreshToken,
   revokeAllUserRefreshTokens,
 } from "../services/jwt.js";
-import { authenticate, authenticateLocal, isAuthEnabled } from "../middleware/auth.js";
+import { authenticate, authenticateAllowPasswordChange, authenticateLocal, isAuthEnabled } from "../middleware/auth.js";
 import type {
   AuthConfigResponse,
   LoginResponse,
@@ -166,8 +166,8 @@ authRouter.post("/refresh", async (req, res) => {
   }
 });
 
-// POST /api/auth/logout - Logout (revoke refresh token)
-authRouter.post("/logout", authenticate, async (req, res) => {
+// POST /api/auth/logout - Logout (revoke refresh token, allows mustChangePassword users)
+authRouter.post("/logout", authenticateAllowPasswordChange, async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
@@ -189,8 +189,8 @@ authRouter.post("/logout", authenticate, async (req, res) => {
   }
 });
 
-// GET /api/auth/me - Get current user info
-authRouter.get("/me", authenticate, async (req, res) => {
+// GET /api/auth/me - Get current user info (allows mustChangePassword users)
+authRouter.get("/me", authenticateAllowPasswordChange, async (req, res) => {
   try {
     const user = req.user!;
     res.json({
@@ -205,8 +205,8 @@ authRouter.get("/me", authenticate, async (req, res) => {
   }
 });
 
-// POST /api/auth/change-password - Change own password
-authRouter.post("/change-password", authenticate, async (req, res) => {
+// POST /api/auth/change-password - Change own password (allows mustChangePassword users)
+authRouter.post("/change-password", authenticateAllowPasswordChange, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user!.id;

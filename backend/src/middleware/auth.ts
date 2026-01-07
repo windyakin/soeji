@@ -11,7 +11,7 @@ export function isAuthEnabled(): boolean {
 export function authenticate(req: Request, res: Response, next: NextFunction) {
   // If auth is disabled, allow all requests with admin role
   if (!isAuthEnabled()) {
-    req.user = { id: "system", username: "system", role: "admin" } as AuthUser;
+    req.user = { id: "system", username: "system", role: "admin", mustChangePassword: false } as AuthUser;
     return next();
   }
 
@@ -26,6 +26,39 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
       if (!user) {
         return res.status(401).json({ error: "Unauthorized" });
       }
+      // Check if user must change password - block access to all other endpoints
+      if (user.mustChangePassword) {
+        return res.status(403).json({
+          error: "Password change required",
+          code: "MUST_CHANGE_PASSWORD",
+        });
+      }
+      req.user = user;
+      next();
+    }
+  )(req, res, next);
+}
+
+// Authentication middleware that allows mustChangePassword users (for password change endpoint)
+export function authenticateAllowPasswordChange(req: Request, res: Response, next: NextFunction) {
+  // If auth is disabled, allow all requests with admin role
+  if (!isAuthEnabled()) {
+    req.user = { id: "system", username: "system", role: "admin", mustChangePassword: false } as AuthUser;
+    return next();
+  }
+
+  // Use Passport JWT authentication
+  passport.authenticate(
+    "jwt",
+    { session: false },
+    (err: Error | null, user: AuthUser | false, _info: unknown) => {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      // Don't check mustChangePassword - allow access for password change
       req.user = user;
       next();
     }

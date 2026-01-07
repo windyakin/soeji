@@ -4,6 +4,7 @@ import SettingsPage from "../pages/SettingsPage.vue";
 import AdminPage from "../pages/AdminPage.vue";
 import LoginPage from "../pages/LoginPage.vue";
 import SetupPage from "../pages/SetupPage.vue";
+import ForceChangePasswordPage from "../pages/ForceChangePasswordPage.vue";
 import { useAuth } from "../composables/useAuth";
 
 declare module "vue-router" {
@@ -26,6 +27,12 @@ const router = createRouter({
       path: "/setup",
       name: "setup",
       component: SetupPage,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: "/force-change-password",
+      name: "force-change-password",
+      component: ForceChangePasswordPage,
       meta: { requiresAuth: false },
     },
     {
@@ -63,6 +70,9 @@ router.beforeEach(async (to, _from, next) => {
     needsSetup,
     authInitialized,
     canManageUsers,
+    mustChangePassword,
+    getTemporaryPassword,
+    logout,
     initialize,
   } = useAuth();
 
@@ -96,6 +106,20 @@ router.beforeEach(async (to, _from, next) => {
   // Check if route requires admin
   if (to.meta.requiresAdmin && !canManageUsers.value) {
     return next({ name: "home" });
+  }
+
+  // If user must change password, handle redirect
+  if (mustChangePassword.value) {
+    // If we have a temporary password (just logged in), redirect to force-change-password
+    if (getTemporaryPassword() !== null) {
+      if (to.name !== "force-change-password") {
+        return next({ name: "force-change-password" });
+      }
+    } else {
+      // No temporary password (page reload) - logout and redirect to login
+      await logout();
+      return next({ name: "login" });
+    }
   }
 
   // Don't allow logged-in users to access login/setup pages

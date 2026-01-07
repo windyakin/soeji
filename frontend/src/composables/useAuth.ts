@@ -32,8 +32,10 @@ function loadStoredAuth(): void {
 
   if (storedUser && storedRefreshToken) {
     try {
-      currentUser.value = JSON.parse(storedUser);
+      const user = JSON.parse(storedUser);
+      currentUser.value = user;
       isAuthenticated.value = true;
+      mustChangePassword.value = user.mustChangePassword || false;
     } catch {
       clearStoredAuth();
     }
@@ -79,6 +81,31 @@ export function useAuth() {
     return currentUser.value?.role === "admin";
   });
 
+  // Fetch current user info from server
+  async function fetchCurrentUser(): Promise<boolean> {
+    if (!accessToken.value) return false;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${accessToken.value}` },
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const user: AuthUser = await response.json();
+      currentUser.value = user;
+      mustChangePassword.value = user.mustChangePassword || false;
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+
+      return true;
+    } catch (error) {
+      console.error("Failed to fetch current user:", error);
+      return false;
+    }
+  }
+
   // Initialize auth state
   async function initialize(): Promise<void> {
     if (authInitialized.value) return;
@@ -108,6 +135,9 @@ export function useAuth() {
         const refreshed = await refreshAccessToken();
         if (!refreshed) {
           clearStoredAuth();
+        } else {
+          // Fetch latest user info to check mustChangePassword status
+          await fetchCurrentUser();
         }
       }
     } catch (error) {
