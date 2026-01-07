@@ -19,6 +19,7 @@ usersRouter.get("/", async (_req, res) => {
         id: true,
         username: true,
         role: true,
+        mustChangePassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -65,11 +66,13 @@ usersRouter.post("/", async (req, res) => {
         username,
         passwordHash,
         role,
+        mustChangePassword: true, // Require password change on first login
       },
       select: {
         id: true,
         username: true,
         role: true,
+        mustChangePassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -93,6 +96,7 @@ usersRouter.get("/:id", async (req, res) => {
         id: true,
         username: true,
         role: true,
+        mustChangePassword: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -135,6 +139,7 @@ usersRouter.put("/:id", async (req, res) => {
       username?: string;
       passwordHash?: string;
       role?: "admin" | "user" | "guest";
+      mustChangePassword?: boolean;
     } = {};
 
     if (username && username !== existingUser.username) {
@@ -153,6 +158,8 @@ usersRouter.put("/:id", async (req, res) => {
         return res.status(400).json({ error: "Password must be at least 8 characters" });
       }
       updateData.passwordHash = await hashPassword(password);
+      // When admin resets password, require password change on next login
+      updateData.mustChangePassword = true;
     }
 
     if (role && ["admin", "user", "guest"].includes(role)) {
@@ -167,6 +174,7 @@ usersRouter.put("/:id", async (req, res) => {
         id: true,
         username: true,
         role: true,
+        mustChangePassword: true,
         createdAt: true,
         updatedAt: true,
       },

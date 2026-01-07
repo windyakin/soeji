@@ -25,6 +25,7 @@ passport.use(
         id: user.id,
         username: user.username,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       });
     } catch (error) {
       return done(error);
@@ -51,6 +52,7 @@ passport.use(
           id: user.id,
           username: user.username,
           role: user.role,
+          mustChangePassword: user.mustChangePassword,
         });
       } catch (error) {
         return done(error);

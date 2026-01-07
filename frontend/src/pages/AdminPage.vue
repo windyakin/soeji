@@ -14,10 +14,11 @@ function goBack() {
   <div class="admin-page">
     <div class="admin-container">
       <header class="admin-header">
-        <div class="header-row">
+        <div class="admin-header-inner">
           <Button
             icon="pi pi-arrow-left"
-            variant="text"
+            text
+            rounded
             @click="goBack"
             aria-label="Back"
           />
@@ -39,31 +40,47 @@ function goBack() {
 }
 
 .admin-container {
-  max-width: 800px;
+  max-width: 48rem;
   margin: 0 auto;
-  padding: 1rem;
+  padding: 1rem 0.65rem;
 }
 
 .admin-header {
-  margin-bottom: 1.5rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 10;
+  background: var(--p-surface-0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.header-row {
+.admin-header-inner {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1rem;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 0.5rem 0.65rem;
 }
 
-.header-row h1 {
-  margin: 0;
+.admin-header h1 {
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--p-text-color);
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .admin-header h1 {
+    font-size: 1.25rem;
+  }
 }
 
 .admin-content {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  padding-top: 3rem;
 }
 </style>

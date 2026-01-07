@@ -77,6 +77,7 @@ authRouter.post("/setup", async (req, res) => {
         id: user.id,
         username: user.username,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       },
     };
 
@@ -107,6 +108,7 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
         id: user.id,
         username: user.username,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       },
     };
 
@@ -195,6 +197,7 @@ authRouter.get("/me", authenticate, async (req, res) => {
       id: user.id,
       username: user.username,
       role: user.role,
+      mustChangePassword: user.mustChangePassword,
     });
   } catch (error) {
     console.error("Failed to get user info:", error);
@@ -232,11 +235,14 @@ authRouter.post("/change-password", authenticate, async (req, res) => {
       return res.status(401).json({ error: "Current password is incorrect" });
     }
 
-    // Update password
+    // Update password and clear mustChangePassword flag
     const passwordHash = await hashPassword(newPassword);
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+      },
     });
 
     // Revoke all refresh tokens (force re-login)

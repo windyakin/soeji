@@ -4,6 +4,7 @@ export interface AuthUser {
   id: string;
   username: string;
   role: UserRole;
+  mustChangePassword?: boolean;
 }
 
 export interface LoginRequest {
@@ -48,6 +49,7 @@ export interface UserListItem {
   id: string;
   username: string;
   role: UserRole;
+  mustChangePassword: boolean;
   createdAt: string;
   updatedAt: string;
 }

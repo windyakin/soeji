@@ -20,6 +20,10 @@ const isAuthenticated = ref(false);
 const currentUser = ref<AuthUser | null>(null);
 const accessToken = ref<string | null>(null);
 const authInitialized = ref(false);
+const mustChangePassword = ref(false);
+
+// Temporary password storage for force password change flow (memory only, never persisted)
+let temporaryPassword: string | null = null;
 
 // Load stored user on initialization
 function loadStoredAuth(): void {
@@ -42,6 +46,8 @@ function clearStoredAuth(): void {
   accessToken.value = null;
   currentUser.value = null;
   isAuthenticated.value = false;
+  mustChangePassword.value = false;
+  temporaryPassword = null;
 }
 
 function storeAuth(user: AuthUser, refreshToken: string): void {
@@ -49,6 +55,7 @@ function storeAuth(user: AuthUser, refreshToken: string): void {
   localStorage.setItem(STORAGE_KEY_REFRESH_TOKEN, refreshToken);
   currentUser.value = user;
   isAuthenticated.value = true;
+  mustChangePassword.value = user.mustChangePassword || false;
 }
 
 export function useAuth() {
@@ -132,6 +139,11 @@ export function useAuth() {
       const data: LoginResponse = await response.json();
       accessToken.value = data.accessToken;
       storeAuth(data.user, data.refreshToken);
+
+      // Store password temporarily if user needs to change it
+      if (data.user.mustChangePassword) {
+        temporaryPassword = password;
+      }
 
       return { success: true };
     } catch (error) {
@@ -239,6 +251,26 @@ export function useAuth() {
     return roles.includes(currentUser.value.role);
   }
 
+  // Clear mustChangePassword flag (called after successful password change)
+  function clearMustChangePassword(): void {
+    mustChangePassword.value = false;
+    temporaryPassword = null;
+    if (currentUser.value) {
+      currentUser.value = { ...currentUser.value, mustChangePassword: false };
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser.value));
+    }
+  }
+
+  // Get temporary password for force password change flow
+  function getTemporaryPassword(): string | null {
+    return temporaryPassword;
+  }
+
+  // Clear temporary password
+  function clearTemporaryPassword(): void {
+    temporaryPassword = null;
+  }
+
   return {
     // State
     authEnabled,
@@ -246,6 +278,7 @@ export function useAuth() {
     isAuthenticated,
     currentUser,
     authInitialized,
+    mustChangePassword,
 
     // Computed
     isLoggedIn,
@@ -261,5 +294,8 @@ export function useAuth() {
     refreshAccessToken,
     getAuthHeader,
     hasRole,
+    clearMustChangePassword,
+    getTemporaryPassword,
+    clearTemporaryPassword,
   };
 }

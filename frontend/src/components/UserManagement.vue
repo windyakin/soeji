@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
+import Button from 'primevue/button'
 import Card from 'primevue/card'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
-import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
@@ -169,7 +169,7 @@ function getRoleSeverity(role: UserRole): 'success' | 'info' | 'secondary' {
 function getRoleLabel(role: UserRole): string {
   switch (role) {
     case 'admin':
-      return 'Admin'
+      return 'Administrator'
     case 'user':
       return 'User'
     case 'guest':
@@ -179,8 +179,9 @@ function getRoleLabel(role: UserRole): string {
   }
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString()
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString()
 }
 
 onMounted(() => {
@@ -194,10 +195,10 @@ onMounted(() => {
   <Card v-if="canManageUsers" class="user-management-card">
     <template #title>
       <div class="card-header">
-        <span>User Management</span>
+        <span>Users</span>
         <Button
-          label="Add User"
           icon="pi pi-plus"
+          label="Add User"
           size="small"
           @click="openCreateDialog"
         />
@@ -207,10 +208,22 @@ onMounted(() => {
       <DataTable
         :value="users"
         :loading="loading"
-        responsiveLayout="scroll"
-        class="user-table"
+        stripedRows
+        size="small"
       >
-        <Column field="username" header="Username" />
+        <Column field="username" header="Username">
+          <template #body="{ data }">
+            <div class="username-cell">
+              <span>{{ data.username }}</span>
+              <Tag
+                v-if="data.id === currentUser?.id"
+                value="You"
+                severity="secondary"
+                class="you-tag"
+              />
+            </div>
+          </template>
+        </Column>
         <Column field="role" header="Role">
           <template #body="{ data }">
             <Tag
@@ -224,7 +237,7 @@ onMounted(() => {
             {{ formatDate(data.createdAt) }}
           </template>
         </Column>
-        <Column header="Actions" style="width: 100px">
+        <Column header="Actions" style="width: 5rem">
           <template #body="{ data }">
             <Button
               v-if="data.id !== currentUser?.id"
@@ -232,6 +245,7 @@ onMounted(() => {
               severity="danger"
               text
               rounded
+              size="small"
               @click="confirmDelete(data)"
             />
           </template>
@@ -246,6 +260,7 @@ onMounted(() => {
     header="Create User"
     modal
     :style="{ width: '24rem' }"
+    :breakpoints="{ '480px': '90vw' }"
   >
     <form class="create-form" @submit.prevent="createUser">
       <div class="form-field">
@@ -269,7 +284,7 @@ onMounted(() => {
           inputClass="w-full"
           class="w-full"
         />
-        <small class="field-hint">At least 8 characters</small>
+        <small class="field-hint">At least 8 characters. User will be prompted to change it on first login.</small>
       </div>
 
       <div class="form-field">
@@ -310,9 +325,9 @@ onMounted(() => {
     v-model:visible="showDeleteDialog"
     header="Delete User"
     modal
-    :style="{ width: '24rem' }"
+    :breakpoints="{ '480px': '90vw' }"
   >
-    <p>
+    <p class="delete-message">
       Are you sure you want to delete user
       <strong>{{ userToDelete?.username }}</strong>?
     </p>
@@ -345,8 +360,14 @@ onMounted(() => {
   align-items: center;
 }
 
-.user-table {
-  font-size: 0.875rem;
+.username-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.you-tag {
+  font-size: 0.7rem;
 }
 
 .create-form {
@@ -377,6 +398,11 @@ onMounted(() => {
   text-align: center;
 }
 
+.delete-message {
+  color: var(--p-text-color);
+  margin: 0;
+}
+
 .w-full {
   width: 100%;
 }
@@ -387,5 +413,9 @@ onMounted(() => {
 
 :deep(.p-password-input) {
   width: 100%;
+}
+
+:deep(.p-datatable) {
+  font-size: 0.875rem;
 }
 </style>

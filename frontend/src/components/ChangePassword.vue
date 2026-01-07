@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
@@ -33,6 +33,44 @@ watch(() => props.visible, (visible) => {
     clearForm()
   }
 })
+
+// Visual viewport handling for keyboard
+const dialogMarginTop = ref<string | null>(null)
+
+function updateDialogPosition() {
+  if (window.visualViewport) {
+    const viewportHeight = window.visualViewport.height
+    const heightDiff = window.innerHeight - viewportHeight
+
+    if (heightDiff > 100) {
+      dialogMarginTop.value = `-${heightDiff}px`
+    } else {
+      dialogMarginTop.value = null
+    }
+  } else {
+    dialogMarginTop.value = null
+  }
+}
+
+onMounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateDialogPosition)
+    window.visualViewport.addEventListener('scroll', updateDialogPosition)
+  }
+})
+
+onUnmounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', updateDialogPosition)
+    window.visualViewport.removeEventListener('scroll', updateDialogPosition)
+  }
+})
+
+const dialogPt = computed(() => ({
+  root: dialogMarginTop.value
+    ? { style: { marginTop: dialogMarginTop.value } }
+    : {}
+}))
 
 async function handleSubmit() {
   errorMessage.value = ''
@@ -94,7 +132,8 @@ function handleCancel() {
     modal
     :closable="!isLoading"
     :closeOnEscape="!isLoading"
-    :style="{ width: '24rem' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :pt="dialogPt"
   >
     <form class="password-form" @submit.prevent="handleSubmit">
       <div class="form-field">
