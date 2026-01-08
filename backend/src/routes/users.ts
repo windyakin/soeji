@@ -2,13 +2,19 @@ import { Router } from "express";
 import { prisma } from "../services/database.js";
 import { hashPassword } from "../services/password.js";
 import { revokeAllUserRefreshTokens } from "../services/jwt.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, isAuthEnabled } from "../middleware/auth.js";
 import { adminOnly } from "../middleware/roleGuard.js";
 import type { CreateUserRequest, UpdateUserRequest } from "../types/auth.js";
 
 export const usersRouter = Router();
 
-// All routes require admin role
+// All routes require authentication to be enabled and admin role
+usersRouter.use((_req, res, next) => {
+  if (!isAuthEnabled()) {
+    return res.status(403).json({ error: "Authentication is not enabled" });
+  }
+  next();
+});
 usersRouter.use(authenticate, adminOnly);
 
 // GET /api/users - List all users

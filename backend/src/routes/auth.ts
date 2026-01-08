@@ -40,6 +40,11 @@ authRouter.get("/config", async (_req, res) => {
 // POST /api/auth/verify-setup-key - Verify setup key before creating admin account
 authRouter.post("/verify-setup-key", async (req, res) => {
   try {
+    // Auth must be enabled for setup
+    if (!isAuthEnabled()) {
+      return res.status(403).json({ error: "Authentication is not enabled" });
+    }
+
     const { setupKey } = req.body as VerifySetupKeyRequest;
 
     // Check if users already exist
@@ -70,6 +75,11 @@ authRouter.post("/verify-setup-key", async (req, res) => {
 // POST /api/auth/setup - Create initial admin user (only when no users exist)
 authRouter.post("/setup", async (req, res) => {
   try {
+    // Auth must be enabled for setup
+    if (!isAuthEnabled()) {
+      return res.status(403).json({ error: "Authentication is not enabled" });
+    }
+
     const { username, password, setupKey } = req.body as SetupRequest;
 
     if (!username || !password) {
