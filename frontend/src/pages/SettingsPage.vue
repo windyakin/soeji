@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import PinSettings from '../components/PinSettings.vue'
+import FullscreenSettings from '../components/FullscreenSettings.vue'
 import VersionInfo from '../components/VersionInfo.vue'
 
 const router = useRouter()
@@ -29,6 +30,7 @@ function goBack() {
 
       <div class="settings-content">
         <PinSettings />
+        <FullscreenSettings />
         <VersionInfo />
       </div>
     </div>
