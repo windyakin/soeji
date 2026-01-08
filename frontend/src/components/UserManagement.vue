@@ -269,7 +269,7 @@ onMounted(() => {
           id="new-username"
           v-model="newUser.username"
           :disabled="formLoading"
-          class="w-full"
+          fluid
         />
       </div>
 
@@ -281,8 +281,7 @@ onMounted(() => {
           toggleMask
           :feedback="false"
           :disabled="formLoading"
-          inputClass="w-full"
-          class="w-full"
+          fluid
         />
         <small class="field-hint">At least 8 characters. User will be prompted to change it on first login.</small>
       </div>
@@ -296,7 +295,7 @@ onMounted(() => {
           optionLabel="label"
           optionValue="value"
           :disabled="formLoading"
-          class="w-full"
+          fluid
         />
       </div>
 
@@ -403,17 +402,6 @@ onMounted(() => {
   margin: 0;
 }
 
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
-}
 
 :deep(.p-datatable) {
   font-size: 0.875rem;

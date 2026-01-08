@@ -145,8 +145,7 @@ function handleCancel() {
           toggleMask
           autocomplete="current-password"
           :disabled="isLoading"
-          inputClass="w-full"
-          class="w-full"
+          fluid
         />
       </div>
 
@@ -159,8 +158,7 @@ function handleCancel() {
           toggleMask
           autocomplete="new-password"
           :disabled="isLoading"
-          inputClass="w-full"
-          class="w-full"
+          fluid
         />
         <small class="hint">Must be at least 8 characters</small>
       </div>
@@ -174,8 +172,7 @@ function handleCancel() {
           toggleMask
           autocomplete="new-password"
           :disabled="isLoading"
-          inputClass="w-full"
-          class="w-full"
+          fluid
         />
       </div>
 
@@ -234,15 +231,4 @@ function handleCancel() {
   gap: 0.5rem;
 }
 
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
-}
 </style>

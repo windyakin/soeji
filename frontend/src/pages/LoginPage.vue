@@ -89,7 +89,7 @@ async function handleSubmit() {
                 v-model="username"
                 autocomplete="username"
                 :disabled="isLoading"
-                class="w-full"
+                fluid
               />
             </div>
 
@@ -102,8 +102,7 @@ async function handleSubmit() {
                 toggleMask
                 autocomplete="current-password"
                 :disabled="isLoading"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
             </div>
 
@@ -111,12 +110,14 @@ async function handleSubmit() {
               {{ errorMessage }}
             </div>
 
-            <Button
-              type="submit"
-              label="Sign in"
-              :loading="isLoading"
-              class="w-full"
-            />
+            <div class="mt-5">
+              <Button
+                type="submit"
+                label="Sign in"
+                :loading="isLoading"
+                fluid
+              />
+            </div>
           </form>
         </template>
       </Card>
@@ -194,15 +195,4 @@ async function handleSubmit() {
   text-align: center;
 }
 
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
-}
 </style>

@@ -156,8 +156,7 @@ async function handleLogout() {
                 toggleMask
                 autocomplete="new-password"
                 :disabled="isLoading || isLoggingOut"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
               <small class="hint">Must be at least 8 characters</small>
             </div>
@@ -171,8 +170,7 @@ async function handleLogout() {
                 toggleMask
                 autocomplete="new-password"
                 :disabled="isLoading || isLoggingOut"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
             </div>
 
@@ -285,15 +283,4 @@ async function handleLogout() {
   margin-top: 0.5rem;
 }
 
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
-}
 </style>

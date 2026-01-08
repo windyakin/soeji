@@ -81,7 +81,7 @@ async function handleSubmit() {
                 v-model="username"
                 autocomplete="username"
                 :disabled="isLoading"
-                class="w-full"
+                fluid
               />
             </div>
 
@@ -93,8 +93,7 @@ async function handleSubmit() {
                 toggleMask
                 autocomplete="new-password"
                 :disabled="isLoading"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
               <small class="field-hint">At least 8 characters</small>
             </div>
@@ -108,8 +107,7 @@ async function handleSubmit() {
                 toggleMask
                 autocomplete="new-password"
                 :disabled="isLoading"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
             </div>
 
@@ -121,7 +119,7 @@ async function handleSubmit() {
               type="submit"
               label="Create Admin Account"
               :loading="isLoading"
-              class="w-full"
+              fluid
             />
           </form>
         </template>
@@ -202,15 +200,4 @@ async function handleSubmit() {
   margin-top: 1.5rem;
 }
 
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
-}
 </style>
