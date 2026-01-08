@@ -26,11 +26,13 @@ export interface RefreshResponse {
 export interface AuthConfigResponse {
   authEnabled: boolean;
   hasUsers: boolean;
+  setupKeyRequired: boolean;
 }
 
 export interface SetupRequest {
   username: string;
   password: string;
+  setupKey: string;
 }
 
 export interface CreateUserRequest {

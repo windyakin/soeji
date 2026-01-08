@@ -36,11 +36,17 @@ export interface RefreshResponse {
 export interface SetupRequest {
   username: string;
   password: string;
+  setupKey: string;
+}
+
+export interface VerifySetupKeyRequest {
+  setupKey: string;
 }
 
 export interface AuthConfigResponse {
   authEnabled: boolean;
   hasUsers: boolean;
+  setupKeyRequired: boolean;
 }
 
 export interface CreateUserRequest {

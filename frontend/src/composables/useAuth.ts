@@ -16,6 +16,7 @@ const STORAGE_KEY_USER = "soeji-auth-user";
 // Shared reactive state (singleton pattern like usePinProtection)
 const authEnabled = ref(true);
 const hasUsers = ref(true);
+const setupKeyRequired = ref(false);
 const isAuthenticated = ref(false);
 const currentUser = ref<AuthUser | null>(null);
 const accessToken = ref<string | null>(null);
@@ -120,6 +121,7 @@ export function useAuth() {
       const config: AuthConfigResponse = await response.json();
       authEnabled.value = config.authEnabled;
       hasUsers.value = config.hasUsers;
+      setupKeyRequired.value = config.setupKeyRequired;
 
       // If auth is disabled, no need to check tokens
       if (!config.authEnabled) {
@@ -182,16 +184,40 @@ export function useAuth() {
     }
   }
 
+  // Verify setup key before creating admin account
+  async function verifySetupKey(
+    setupKey: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/verify-setup-key`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ setupKey }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Verification failed" };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Verify setup key error:", error);
+      return { success: false, error: "Network error" };
+    }
+  }
+
   // Setup initial admin account
   async function setup(
     username: string,
-    password: string
+    password: string,
+    setupKey: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const response = await fetch(`${API_BASE}/api/auth/setup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, setupKey }),
       });
 
       if (!response.ok) {
@@ -305,6 +331,7 @@ export function useAuth() {
     // State
     authEnabled,
     hasUsers,
+    setupKeyRequired,
     isAuthenticated,
     currentUser,
     authInitialized,
@@ -319,6 +346,7 @@ export function useAuth() {
     // Methods
     initialize,
     login,
+    verifySetupKey,
     setup,
     logout,
     refreshAccessToken,

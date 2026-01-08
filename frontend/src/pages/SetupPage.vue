@@ -11,15 +11,50 @@ import VersionInfo from '../components/VersionInfo.vue'
 
 const router = useRouter()
 const toast = useToast()
-const { setup: setupAuth } = useAuth()
+const { verifySetupKey, setup: setupAuth } = useAuth()
 
+// Step management
+const currentStep = ref<'setupKey' | 'createAdmin'>('setupKey')
+
+// Step 1: Setup Key
+const setupKey = ref('')
+const verifiedSetupKey = ref('')
+
+// Step 2: Admin account
 const username = ref('')
 const password = ref('')
 const confirmPassword = ref('')
+
+// Shared state
 const isLoading = ref(false)
 const errorMessage = ref('')
 
-async function handleSubmit() {
+// Step 1: Verify Setup Key
+async function handleVerifySetupKey() {
+  errorMessage.value = ''
+
+  if (!setupKey.value) {
+    errorMessage.value = 'Please enter the setup key'
+    return
+  }
+
+  isLoading.value = true
+
+  const result = await verifySetupKey(setupKey.value)
+
+  isLoading.value = false
+
+  if (result.success) {
+    verifiedSetupKey.value = setupKey.value
+    currentStep.value = 'createAdmin'
+    errorMessage.value = ''
+  } else {
+    errorMessage.value = result.error || 'Invalid setup key'
+  }
+}
+
+// Step 2: Create Admin Account
+async function handleCreateAdmin() {
   errorMessage.value = ''
 
   if (!username.value || !password.value || !confirmPassword.value) {
@@ -44,7 +79,7 @@ async function handleSubmit() {
 
   isLoading.value = true
 
-  const result = await setupAuth(username.value, password.value)
+  const result = await setupAuth(username.value, password.value, verifiedSetupKey.value)
 
   isLoading.value = false
 
@@ -60,6 +95,12 @@ async function handleSubmit() {
     errorMessage.value = result.error || 'Setup failed'
   }
 }
+
+// Go back to Step 1
+function handleBack() {
+  currentStep.value = 'setupKey'
+  errorMessage.value = ''
+}
 </script>
 
 <template>
@@ -69,11 +110,42 @@ async function handleSubmit() {
         <template #title>
           <div class="setup-title">
             <h1>Soeji</h1>
-            <p class="setup-subtitle">Create your admin account</p>
+            <p class="setup-subtitle">
+              {{ currentStep === 'setupKey' ? 'Enter setup key to continue' : 'Create your admin account' }}
+            </p>
           </div>
         </template>
         <template #content>
-          <form class="setup-form" @submit.prevent="handleSubmit">
+          <!-- Step 1: Setup Key Verification -->
+          <form v-if="currentStep === 'setupKey'" class="setup-form" @submit.prevent="handleVerifySetupKey">
+            <div class="form-field">
+              <label for="setupKey">Setup Key</label>
+              <Password
+                v-model="setupKey"
+                inputId="setupKey"
+                :feedback="false"
+                toggleMask
+                :disabled="isLoading"
+                inputClass="w-full"
+                class="w-full"
+              />
+              <small class="field-hint">Enter the setup key provided by your administrator</small>
+            </div>
+
+            <div v-if="errorMessage" class="error-message">
+              {{ errorMessage }}
+            </div>
+
+            <Button
+              type="submit"
+              label="Continue"
+              :loading="isLoading"
+              class="w-full"
+            />
+          </form>
+
+          <!-- Step 2: Create Admin Account -->
+          <form v-else-if="currentStep === 'createAdmin'" class="setup-form" @submit.prevent="handleCreateAdmin">
             <div class="form-field">
               <label for="username">Username</label>
               <InputText
@@ -117,12 +189,20 @@ async function handleSubmit() {
               {{ errorMessage }}
             </div>
 
-            <Button
-              type="submit"
-              label="Create Admin Account"
-              :loading="isLoading"
-              class="w-full"
-            />
+            <div class="button-group">
+              <Button
+                type="button"
+                label="Back"
+                severity="secondary"
+                :disabled="isLoading"
+                @click="handleBack"
+              />
+              <Button
+                type="submit"
+                label="Create Admin Account"
+                :loading="isLoading"
+              />
+            </div>
           </form>
         </template>
       </Card>
@@ -196,6 +276,19 @@ async function handleSubmit() {
   color: var(--p-red-500);
   font-size: 0.875rem;
   text-align: center;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.button-group > :first-child {
+  flex: 0 0 auto;
+}
+
+.button-group > :last-child {
+  flex: 1 1 auto;
 }
 
 .version-container {

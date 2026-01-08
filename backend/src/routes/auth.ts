@@ -14,7 +14,10 @@ import type {
   LoginResponse,
   RefreshResponse,
   SetupRequest,
+  VerifySetupKeyRequest,
 } from "../types/auth.js";
+
+const SETUP_KEY = process.env.SETUP_KEY;
 
 export const authRouter = Router();
 
@@ -25,6 +28,7 @@ authRouter.get("/config", async (_req, res) => {
     const response: AuthConfigResponse = {
       authEnabled: isAuthEnabled(),
       hasUsers: userCount > 0,
+      setupKeyRequired: !!SETUP_KEY,
     };
     res.json(response);
   } catch (error) {
@@ -33,10 +37,40 @@ authRouter.get("/config", async (_req, res) => {
   }
 });
 
+// POST /api/auth/verify-setup-key - Verify setup key before creating admin account
+authRouter.post("/verify-setup-key", async (req, res) => {
+  try {
+    const { setupKey } = req.body as VerifySetupKeyRequest;
+
+    // Check if users already exist
+    const userCount = await prisma.user.count();
+    if (userCount > 0) {
+      return res.status(403).json({ error: "Setup already completed" });
+    }
+
+    // SETUP_KEY not configured - setup is disabled
+    if (!SETUP_KEY) {
+      return res.status(503).json({
+        error: "Setup is disabled. SETUP_KEY environment variable is not configured.",
+      });
+    }
+
+    // Verify setup key
+    if (setupKey !== SETUP_KEY) {
+      return res.status(403).json({ error: "Invalid setup key" });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to verify setup key:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // POST /api/auth/setup - Create initial admin user (only when no users exist)
 authRouter.post("/setup", async (req, res) => {
   try {
-    const { username, password } = req.body as SetupRequest;
+    const { username, password, setupKey } = req.body as SetupRequest;
 
     if (!username || !password) {
       return res.status(400).json({ error: "Username and password are required" });
@@ -50,6 +84,18 @@ authRouter.post("/setup", async (req, res) => {
     const userCount = await prisma.user.count();
     if (userCount > 0) {
       return res.status(403).json({ error: "Setup already completed" });
+    }
+
+    // SETUP_KEY not configured - setup is disabled
+    if (!SETUP_KEY) {
+      return res.status(503).json({
+        error: "Setup is disabled. SETUP_KEY environment variable is not configured.",
+      });
+    }
+
+    // Verify setup key
+    if (setupKey !== SETUP_KEY) {
+      return res.status(403).json({ error: "Invalid setup key" });
     }
 
     // Create admin user
