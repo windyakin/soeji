@@ -146,8 +146,8 @@ async function handleLogout() {
             Your password must be changed before continuing.
           </Message>
 
-          <form class="password-form" @submit.prevent="handleSubmit">
-            <div class="form-field">
+          <form @submit.prevent="handleSubmit">
+            <div class="field">
               <label for="new-password">New Password</label>
               <Password
                 v-model="newPassword"
@@ -156,13 +156,12 @@ async function handleLogout() {
                 toggleMask
                 autocomplete="new-password"
                 :disabled="isLoading || isLoggingOut"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
-              <small class="hint">Must be at least 8 characters</small>
+              <small>Must be at least 8 characters</small>
             </div>
 
-            <div class="form-field">
+            <div class="field">
               <label for="confirm-password">Confirm New Password</label>
               <Password
                 v-model="confirmPassword"
@@ -171,8 +170,7 @@ async function handleLogout() {
                 toggleMask
                 autocomplete="new-password"
                 :disabled="isLoading || isLoggingOut"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
             </div>
 
@@ -180,7 +178,7 @@ async function handleLogout() {
               {{ errorMessage }}
             </Message>
 
-            <div class="button-row">
+            <div class="flex justify-content-between gap-2 mt-2">
               <Button
                 type="button"
                 label="Sign out"
@@ -254,46 +252,5 @@ async function handleLogout() {
 
 .info-message {
   margin-bottom: 1rem;
-}
-
-.password-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-field label {
-  font-weight: 500;
-  color: var(--p-text-color);
-}
-
-.hint {
-  color: var(--p-text-muted-color);
-  font-size: 0.75rem;
-}
-
-.button-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
 }
 </style>

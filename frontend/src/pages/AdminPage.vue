@@ -14,7 +14,7 @@ function goBack() {
   <div class="admin-page">
     <div class="admin-container">
       <header class="admin-header">
-        <div class="admin-header-inner">
+        <div class="flex align-items-center gap-3 admin-header-inner">
           <Button
             icon="pi pi-arrow-left"
             text
@@ -26,7 +26,7 @@ function goBack() {
         </div>
       </header>
 
-      <div class="admin-content">
+      <div class="flex flex-column gap-4 admin-content">
         <UserManagement />
       </div>
     </div>
@@ -56,9 +56,6 @@ function goBack() {
 }
 
 .admin-header-inner {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
   max-width: 48rem;
   margin: 0 auto;
   padding: 0.5rem 0.65rem;
@@ -78,9 +75,6 @@ function goBack() {
 }
 
 .admin-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding-top: 3rem;
+  padding-top: 4rem;
 }
 </style>

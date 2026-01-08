@@ -4,6 +4,7 @@ import ConfirmationService from "primevue/confirmationservice";
 import ToastService from "primevue/toastservice";
 import Aura from "@primevue/themes/aura";
 import "primeicons/primeicons.css";
+import "primeflex/primeflex.css";
 import "./style.css";
 import App from "./App.vue";
 import router from "./router";

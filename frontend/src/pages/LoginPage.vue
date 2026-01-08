@@ -81,19 +81,19 @@ async function handleSubmit() {
           </div>
         </template>
         <template #content>
-          <form class="login-form" @submit.prevent="handleSubmit">
-            <div class="form-field">
+          <form @submit.prevent="handleSubmit">
+            <div class="field">
               <label for="username">Username</label>
               <InputText
                 id="username"
                 v-model="username"
                 autocomplete="username"
                 :disabled="isLoading"
-                class="w-full"
+                fluid
               />
             </div>
 
-            <div class="form-field">
+            <div class="field">
               <label for="password">Password</label>
               <Password
                 v-model="password"
@@ -102,8 +102,7 @@ async function handleSubmit() {
                 toggleMask
                 autocomplete="current-password"
                 :disabled="isLoading"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
             </div>
 
@@ -115,7 +114,8 @@ async function handleSubmit() {
               type="submit"
               label="Sign in"
               :loading="isLoading"
-              class="w-full"
+              fluid
+              class="mt-4"
             />
           </form>
         </template>
@@ -171,38 +171,10 @@ async function handleSubmit() {
   font-size: 0.875rem;
 }
 
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-field label {
-  font-weight: 500;
-  color: var(--p-text-color);
-}
-
 .error-message {
   color: var(--p-red-500);
   font-size: 0.875rem;
   text-align: center;
 }
 
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
-}
 </style>
