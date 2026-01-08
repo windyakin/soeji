@@ -194,7 +194,7 @@ onMounted(() => {
 <template>
   <Card v-if="canManageUsers" class="user-management-card">
     <template #title>
-      <div class="card-header">
+      <div class="flex justify-content-between align-items-center">
         <span>Users</span>
         <Button
           icon="pi pi-plus"
@@ -213,7 +213,7 @@ onMounted(() => {
       >
         <Column field="username" header="Username">
           <template #body="{ data }">
-            <div class="username-cell">
+            <div class="flex align-items-center gap-2">
               <span>{{ data.username }}</span>
               <Tag
                 v-if="data.id === currentUser?.id"
@@ -262,8 +262,8 @@ onMounted(() => {
     :style="{ width: '24rem' }"
     :breakpoints="{ '480px': '90vw' }"
   >
-    <form class="create-form" @submit.prevent="createUser">
-      <div class="form-field">
+    <form @submit.prevent="createUser">
+      <div class="field">
         <label for="new-username">Username</label>
         <InputText
           id="new-username"
@@ -273,7 +273,7 @@ onMounted(() => {
         />
       </div>
 
-      <div class="form-field">
+      <div class="field">
         <label for="new-password">Password</label>
         <Password
           v-model="newUser.password"
@@ -283,10 +283,10 @@ onMounted(() => {
           :disabled="formLoading"
           fluid
         />
-        <small class="field-hint">At least 8 characters. User will be prompted to change it on first login.</small>
+        <small>At least 8 characters. User will be prompted to change it on first login.</small>
       </div>
 
-      <div class="form-field">
+      <div class="field">
         <label for="new-role">Role</label>
         <Select
           v-model="newUser.role"
@@ -353,42 +353,8 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.username-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .you-tag {
   font-size: 0.7rem;
-}
-
-.create-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-field label {
-  font-weight: 500;
-  color: var(--p-text-color);
-}
-
-.field-hint {
-  color: var(--p-text-muted-color);
-  font-size: 0.75rem;
 }
 
 .error-message {

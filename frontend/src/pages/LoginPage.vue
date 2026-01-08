@@ -81,8 +81,8 @@ async function handleSubmit() {
           </div>
         </template>
         <template #content>
-          <form class="login-form" @submit.prevent="handleSubmit">
-            <div class="form-field">
+          <form @submit.prevent="handleSubmit">
+            <div class="field">
               <label for="username">Username</label>
               <InputText
                 id="username"
@@ -93,7 +93,7 @@ async function handleSubmit() {
               />
             </div>
 
-            <div class="form-field">
+            <div class="field">
               <label for="password">Password</label>
               <Password
                 v-model="password"
@@ -110,14 +110,13 @@ async function handleSubmit() {
               {{ errorMessage }}
             </div>
 
-            <div class="mt-5">
-              <Button
-                type="submit"
-                label="Sign in"
-                :loading="isLoading"
-                fluid
-              />
-            </div>
+            <Button
+              type="submit"
+              label="Sign in"
+              :loading="isLoading"
+              fluid
+              class="mt-4"
+            />
           </form>
         </template>
       </Card>
@@ -170,23 +169,6 @@ async function handleSubmit() {
   margin: 0.5rem 0 0;
   color: var(--p-text-muted-color);
   font-size: 0.875rem;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-field label {
-  font-weight: 500;
-  color: var(--p-text-color);
 }
 
 .error-message {

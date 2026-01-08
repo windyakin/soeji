@@ -73,8 +73,8 @@ async function handleSubmit() {
           </div>
         </template>
         <template #content>
-          <form class="setup-form" @submit.prevent="handleSubmit">
-            <div class="form-field">
+          <form @submit.prevent="handleSubmit">
+            <div class="field">
               <label for="username">Username</label>
               <InputText
                 id="username"
@@ -85,7 +85,7 @@ async function handleSubmit() {
               />
             </div>
 
-            <div class="form-field">
+            <div class="field">
               <label for="password">Password</label>
               <Password
                 v-model="password"
@@ -95,10 +95,10 @@ async function handleSubmit() {
                 :disabled="isLoading"
                 fluid
               />
-              <small class="field-hint">At least 8 characters</small>
+              <small>At least 8 characters</small>
             </div>
 
-            <div class="form-field">
+            <div class="field">
               <label for="confirmPassword">Confirm Password</label>
               <Password
                 v-model="confirmPassword"
@@ -166,28 +166,6 @@ async function handleSubmit() {
   margin: 0.5rem 0 0;
   color: var(--p-text-muted-color);
   font-size: 0.875rem;
-}
-
-.setup-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-field label {
-  font-weight: 500;
-  color: var(--p-text-color);
-}
-
-.field-hint {
-  color: var(--p-text-muted-color);
-  font-size: 0.75rem;
 }
 
 .error-message {
