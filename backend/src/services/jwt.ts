@@ -10,11 +10,42 @@ const REFRESH_TOKEN_EXPIRES_DAYS = parseInt(
   10
 );
 
-export function generateAccessToken(payload: TokenPayload): string {
+// Parse duration string (e.g., "15m", "1h", "7d") to milliseconds
+function parseDurationToMs(duration: string): number {
+  const match = duration.match(/^(\d+)([smhd])$/);
+  if (!match) {
+    // Default to 15 minutes if parsing fails
+    return 15 * 60 * 1000;
+  }
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  switch (unit) {
+    case "s":
+      return value * 1000;
+    case "m":
+      return value * 60 * 1000;
+    case "h":
+      return value * 60 * 60 * 1000;
+    case "d":
+      return value * 24 * 60 * 60 * 1000;
+    default:
+      return 15 * 60 * 1000;
+  }
+}
+
+export function generateAccessToken(payload: TokenPayload): {
+  token: string;
+  expiresAt: Date;
+} {
   // expiresIn accepts string like "15m" or number (seconds)
-  return jwt.sign(payload as object, JWT_SECRET, {
+  const token = jwt.sign(payload as object, JWT_SECRET, {
     expiresIn: ACCESS_TOKEN_EXPIRES,
   } as jwt.SignOptions);
+
+  // Calculate expiration time
+  const expiresAt = new Date(Date.now() + parseDurationToMs(ACCESS_TOKEN_EXPIRES));
+
+  return { token, expiresAt };
 }
 
 export function verifyAccessToken(token: string): TokenPayload | null {

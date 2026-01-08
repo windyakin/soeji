@@ -13,6 +13,11 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 const STORAGE_KEY_REFRESH_TOKEN = "soeji-refresh-token";
 const STORAGE_KEY_USER = "soeji-auth-user";
 
+// Token refresh check interval (every 30 seconds)
+const TOKEN_CHECK_INTERVAL_MS = 30 * 1000;
+// Refresh when remaining time is less than 3 minutes
+const TOKEN_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
+
 // Shared reactive state (singleton pattern like usePinProtection)
 const authEnabled = ref(true);
 const hasUsers = ref(true);
@@ -23,8 +28,71 @@ const accessToken = ref<string | null>(null);
 const authInitialized = ref(false);
 const mustChangePassword = ref(false);
 
+// Token expiration time (cached from API response)
+let accessTokenExpiresAt: Date | null = null;
+
 // Temporary password storage for force password change flow (memory only, never persisted)
 let temporaryPassword: string | null = null;
+
+// Token refresh check timer
+let refreshCheckTimer: ReturnType<typeof setInterval> | null = null;
+
+// Start token expiration check timer
+function startRefreshCheckTimer(): void {
+  stopRefreshCheckTimer();
+  refreshCheckTimer = setInterval(async () => {
+    if (!isAuthenticated.value || !authEnabled.value) {
+      return;
+    }
+
+    // Check if token is about to expire
+    if (accessTokenExpiresAt) {
+      const remainingMs = accessTokenExpiresAt.getTime() - Date.now();
+      if (remainingMs < TOKEN_REFRESH_THRESHOLD_MS) {
+        await doRefreshAccessToken();
+      }
+    }
+  }, TOKEN_CHECK_INTERVAL_MS);
+}
+
+// Stop token refresh check timer
+function stopRefreshCheckTimer(): void {
+  if (refreshCheckTimer) {
+    clearInterval(refreshCheckTimer);
+    refreshCheckTimer = null;
+  }
+}
+
+// Internal refresh function (used by timer and public refreshAccessToken)
+async function doRefreshAccessToken(): Promise<boolean> {
+  const storedRefreshToken = localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN);
+  if (!storedRefreshToken) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: storedRefreshToken }),
+      credentials: "include", // Include cookies in request
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data: RefreshResponse = await response.json();
+    accessToken.value = data.accessToken;
+    accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
+    localStorage.setItem(STORAGE_KEY_REFRESH_TOKEN, data.refreshToken);
+
+    return true;
+  } catch (error) {
+    console.error("Token refresh error:", error);
+    return false;
+  }
+}
 
 // Load stored user on initialization
 function loadStoredAuth(): void {
@@ -44,6 +112,7 @@ function loadStoredAuth(): void {
 }
 
 function clearStoredAuth(): void {
+  stopRefreshCheckTimer();
   localStorage.removeItem(STORAGE_KEY_REFRESH_TOKEN);
   localStorage.removeItem(STORAGE_KEY_USER);
   accessToken.value = null;
@@ -140,6 +209,8 @@ export function useAuth() {
         } else {
           // Fetch latest user info to check mustChangePassword status
           await fetchCurrentUser();
+          // Start proactive refresh timer
+          startRefreshCheckTimer();
         }
       }
     } catch (error) {
@@ -161,6 +232,7 @@ export function useAuth() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
+        credentials: "include", // Include cookies in response
       });
 
       if (!response.ok) {
@@ -176,6 +248,10 @@ export function useAuth() {
       if (data.user.mustChangePassword) {
         temporaryPassword = password;
       }
+
+      // Store token expiration time and start proactive refresh timer
+      accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
+      startRefreshCheckTimer();
 
       return { success: true };
     } catch (error) {
@@ -218,6 +294,7 @@ export function useAuth() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, setupKey }),
+        credentials: "include", // Include cookies in response
       });
 
       if (!response.ok) {
@@ -230,6 +307,10 @@ export function useAuth() {
       storeAuth(data.user, data.refreshToken);
       hasUsers.value = true;
 
+      // Store token expiration time and start proactive refresh timer
+      accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
+      startRefreshCheckTimer();
+
       return { success: true };
     } catch (error) {
       console.error("Setup error:", error);
@@ -239,31 +320,7 @@ export function useAuth() {
 
   // Refresh access token using stored refresh token
   async function refreshAccessToken(): Promise<boolean> {
-    const storedRefreshToken = localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN);
-    if (!storedRefreshToken) {
-      return false;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: storedRefreshToken }),
-      });
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const data: RefreshResponse = await response.json();
-      accessToken.value = data.accessToken;
-      localStorage.setItem(STORAGE_KEY_REFRESH_TOKEN, data.refreshToken);
-
-      return true;
-    } catch (error) {
-      console.error("Token refresh error:", error);
-      return false;
-    }
+    return doRefreshAccessToken();
   }
 
   // Logout
@@ -279,6 +336,7 @@ export function useAuth() {
             Authorization: `Bearer ${accessToken.value}`,
           },
           body: JSON.stringify({ refreshToken: storedRefreshToken }),
+          credentials: "include", // Include cookies to clear them
         });
       }
     } catch (error) {

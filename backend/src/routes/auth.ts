@@ -5,10 +5,12 @@ import {
   generateAccessToken,
   generateRefreshToken,
   verifyRefreshToken,
+  verifyAccessToken,
   revokeRefreshToken,
   revokeAllUserRefreshTokens,
 } from "../services/jwt.js";
 import { authenticate, authenticateAllowPasswordChange, authenticateLocal, isAuthEnabled } from "../middleware/auth.js";
+import type { Response } from "express";
 import type {
   AuthConfigResponse,
   LoginResponse,
@@ -18,6 +20,33 @@ import type {
 } from "../types/auth.js";
 
 const SETUP_KEY = process.env.SETUP_KEY;
+
+// Cookie name for CDN authentication
+const AUTH_COOKIE_NAME = "soeji_auth_token";
+// Cookie max age in seconds
+// Set slightly longer than JWT expiration (15m + 1m buffer) to ensure Cookie
+// is always valid while Bearer Token is valid. The JWT signature verification
+// in /api/auth/verify will reject expired tokens regardless of Cookie expiry.
+const AUTH_COOKIE_MAX_AGE = 16 * 60;
+
+// Helper function to set auth cookie
+function setAuthCookie(res: Response, accessToken: string): void {
+  res.cookie(AUTH_COOKIE_NAME, accessToken, {
+    httpOnly: true,
+    sameSite: "strict",
+    maxAge: AUTH_COOKIE_MAX_AGE * 1000, // Express uses milliseconds
+    path: "/",
+  });
+}
+
+// Helper function to clear auth cookie
+function clearAuthCookie(res: Response): void {
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: "strict",
+    path: "/",
+  });
+}
 
 export const authRouter = Router();
 
@@ -119,7 +148,7 @@ authRouter.post("/setup", async (req, res) => {
     });
 
     // Generate tokens
-    const accessToken = generateAccessToken({
+    const { token: accessToken, expiresAt: accessTokenExpiresAt } = generateAccessToken({
       userId: user.id,
       username: user.username,
       role: user.role,
@@ -128,6 +157,7 @@ authRouter.post("/setup", async (req, res) => {
 
     const response: LoginResponse = {
       accessToken,
+      accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
       refreshToken,
       user: {
         id: user.id,
@@ -136,6 +166,9 @@ authRouter.post("/setup", async (req, res) => {
         mustChangePassword: user.mustChangePassword,
       },
     };
+
+    // Set auth cookie for CDN authentication
+    setAuthCookie(res, accessToken);
 
     res.status(201).json(response);
   } catch (error) {
@@ -150,7 +183,7 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
     const user = req.user!;
 
     // Generate tokens
-    const accessToken = generateAccessToken({
+    const { token: accessToken, expiresAt: accessTokenExpiresAt } = generateAccessToken({
       userId: user.id,
       username: user.username,
       role: user.role,
@@ -159,6 +192,7 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
 
     const response: LoginResponse = {
       accessToken,
+      accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
       refreshToken,
       user: {
         id: user.id,
@@ -167,6 +201,9 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
         mustChangePassword: user.mustChangePassword,
       },
     };
+
+    // Set auth cookie for CDN authentication
+    setAuthCookie(res, accessToken);
 
     res.json(response);
   } catch (error) {
@@ -203,7 +240,7 @@ authRouter.post("/refresh", async (req, res) => {
     await revokeRefreshToken(tokenInfo.tokenId);
 
     // Generate new tokens
-    const accessToken = generateAccessToken({
+    const { token: accessToken, expiresAt: accessTokenExpiresAt } = generateAccessToken({
       userId: user.id,
       username: user.username,
       role: user.role,
@@ -212,8 +249,12 @@ authRouter.post("/refresh", async (req, res) => {
 
     const response: RefreshResponse = {
       accessToken,
+      accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
       refreshToken: newRefreshToken,
     };
+
+    // Update auth cookie for CDN authentication
+    setAuthCookie(res, accessToken);
 
     res.json(response);
   } catch (error) {
@@ -238,6 +279,9 @@ authRouter.post("/logout", authenticateAllowPasswordChange, async (req, res) => 
       await revokeAllUserRefreshTokens(req.user!.id);
     }
 
+    // Clear auth cookie
+    clearAuthCookie(res);
+
     res.json({ success: true });
   } catch (error) {
     console.error("Failed to logout:", error);
@@ -259,6 +303,31 @@ authRouter.get("/me", authenticateAllowPasswordChange, async (req, res) => {
     console.error("Failed to get user info:", error);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+// GET /api/auth/verify - Verify authentication token (for CDN auth_request)
+// This endpoint is designed to be called by nginx auth_request directive
+// It verifies the JWT from Cookie and returns 200 (authenticated) or 401 (not authenticated)
+authRouter.get("/verify", (req, res) => {
+  // If auth is not enabled, always return 200
+  if (!isAuthEnabled()) {
+    return res.status(200).send();
+  }
+
+  // Extract token from cookie
+  const token = req.cookies?.soeji_auth_token;
+  if (!token) {
+    return res.status(401).send();
+  }
+
+  // Verify the JWT token
+  const payload = verifyAccessToken(token);
+  if (!payload) {
+    return res.status(401).send();
+  }
+
+  // Token is valid
+  res.status(200).send();
 });
 
 // POST /api/auth/change-password - Change own password (allows mustChangePassword users)

@@ -14,12 +14,14 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   accessToken: string;
+  accessTokenExpiresAt: string;
   refreshToken: string;
   user: AuthUser;
 }
 
 export interface RefreshResponse {
   accessToken: string;
+  accessTokenExpiresAt: string;
   refreshToken: string;
 }
 

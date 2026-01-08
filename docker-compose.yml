@@ -81,14 +81,19 @@ services:
   cdn:
     image: nginx:1.28
     container_name: soeji-cdn
+    environment:
+      # Backend URL for auth_request
+      - BACKEND_URL=http://backend:3000
     volumes:
-      - ./cdn/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./cdn/templates:/etc/nginx/templates:ro
       - cdn_cache:/var/cache/nginx
     ports:
       - "9080:80"
     depends_on:
       converter:
         condition: service_healthy
+      backend:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 10s
@@ -172,8 +177,6 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      cdn:
-        condition: service_healthy
     restart: unless-stopped
 
   service:

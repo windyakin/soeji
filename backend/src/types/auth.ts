@@ -20,6 +20,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   accessToken: string;
+  accessTokenExpiresAt: string; // ISO 8601 timestamp
   refreshToken: string;
   user: AuthUser;
 }
@@ -30,6 +31,7 @@ export interface RefreshRequest {
 
 export interface RefreshResponse {
   accessToken: string;
+  accessTokenExpiresAt: string; // ISO 8601 timestamp
   refreshToken: string;
 }
 

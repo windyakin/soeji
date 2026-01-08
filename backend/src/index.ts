@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import passport from "./config/passport.js";
 import { searchRouter } from "./routes/search.js";
 import { imagesRouter } from "./routes/images.js";
@@ -15,6 +16,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
 // Initialize Passport (no session)
 app.use(passport.initialize());
