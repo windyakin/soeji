@@ -37,22 +37,37 @@ let temporaryPassword: string | null = null;
 // Token refresh check timer
 let refreshCheckTimer: ReturnType<typeof setInterval> | null = null;
 
+// Check token expiration and refresh if needed
+async function checkAndRefreshToken(): Promise<void> {
+  if (!isAuthenticated.value || !authEnabled.value) {
+    return;
+  }
+
+  if (accessTokenExpiresAt) {
+    const remainingMs = accessTokenExpiresAt.getTime() - Date.now();
+    if (remainingMs < TOKEN_REFRESH_THRESHOLD_MS) {
+      await doRefreshAccessToken();
+    }
+  }
+}
+
+// Handle visibility change (tab becomes active, wake from sleep)
+function handleVisibilityChange(): void {
+  if (document.visibilityState === "visible") {
+    // When tab becomes visible, immediately check token expiration
+    checkAndRefreshToken();
+  }
+}
+
 // Start token expiration check timer
 function startRefreshCheckTimer(): void {
   stopRefreshCheckTimer();
-  refreshCheckTimer = setInterval(async () => {
-    if (!isAuthenticated.value || !authEnabled.value) {
-      return;
-    }
 
-    // Check if token is about to expire
-    if (accessTokenExpiresAt) {
-      const remainingMs = accessTokenExpiresAt.getTime() - Date.now();
-      if (remainingMs < TOKEN_REFRESH_THRESHOLD_MS) {
-        await doRefreshAccessToken();
-      }
-    }
-  }, TOKEN_CHECK_INTERVAL_MS);
+  // Periodic check every 30 seconds
+  refreshCheckTimer = setInterval(checkAndRefreshToken, TOKEN_CHECK_INTERVAL_MS);
+
+  // Also check when tab becomes visible (handles background throttling and sleep wake)
+  document.addEventListener("visibilitychange", handleVisibilityChange);
 }
 
 // Stop token refresh check timer
@@ -61,6 +76,7 @@ function stopRefreshCheckTimer(): void {
     clearInterval(refreshCheckTimer);
     refreshCheckTimer = null;
   }
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
 }
 
 // Internal refresh function (used by timer and public refreshAccessToken)
