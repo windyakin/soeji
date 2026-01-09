@@ -14,7 +14,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 const router = useRouter()
 const toast = useToast()
-const { logout, getAuthHeader, clearMustChangePassword, getTemporaryPassword } = useAuth()
+const { logout, clearMustChangePassword, getTemporaryPassword } = useAuth()
 
 const infoPopoverRef = ref<InstanceType<typeof Popover> | null>(null)
 
@@ -68,8 +68,8 @@ async function handleSubmit() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeader(),
       },
+      credentials: 'include',
       body: JSON.stringify({
         currentPassword,
         newPassword: newPassword.value,

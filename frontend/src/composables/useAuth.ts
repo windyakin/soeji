@@ -10,8 +10,7 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
-// Storage keys
-const STORAGE_KEY_REFRESH_TOKEN = "soeji-refresh-token";
+// Storage key for user info only (tokens are in httpOnly cookies)
 const STORAGE_KEY_USER = "soeji-auth-user";
 
 // Token refresh check interval (every 30 seconds)
@@ -25,7 +24,6 @@ const hasUsers = ref(true);
 const setupKeyRequired = ref(false);
 const isAuthenticated = ref(false);
 const currentUser = ref<AuthUser | null>(null);
-const accessToken = ref<string | null>(null);
 const authInitialized = ref(false);
 const mustChangePassword = ref(false);
 
@@ -82,32 +80,24 @@ function stopRefreshCheckTimer(): void {
 
 // Internal refresh function (used by timer and public refreshAccessToken)
 async function doRefreshAccessToken(): Promise<boolean> {
-  const storedRefreshToken = localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN);
-  if (!storedRefreshToken) {
-    return false;
-  }
-
   try {
+    // Refresh token is read from httpOnly cookie by the server
     const response = await fetch(`${API_BASE}/api/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: storedRefreshToken }),
-      credentials: "include", // Include cookies in request
+      credentials: "include", // Send cookies
     });
 
     if (!response.ok) {
       // 401 Unauthorized - force logout and redirect to login
       if (response.status === 401) {
-        clearStoredAuth();
+        clearAuthState();
         router.push("/login");
       }
       return false;
     }
 
     const data: RefreshResponse = await response.json();
-    accessToken.value = data.accessToken;
     accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
-    localStorage.setItem(STORAGE_KEY_REFRESH_TOKEN, data.refreshToken);
 
     return true;
   } catch (error) {
@@ -117,39 +107,37 @@ async function doRefreshAccessToken(): Promise<boolean> {
 }
 
 // Load stored user on initialization
-function loadStoredAuth(): void {
+function loadStoredUser(): void {
   const storedUser = localStorage.getItem(STORAGE_KEY_USER);
-  const storedRefreshToken = localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN);
 
-  if (storedUser && storedRefreshToken) {
+  if (storedUser) {
     try {
       const user = JSON.parse(storedUser);
       currentUser.value = user;
       isAuthenticated.value = true;
       mustChangePassword.value = user.mustChangePassword || false;
     } catch {
-      clearStoredAuth();
+      clearAuthState();
     }
   }
 }
 
-function clearStoredAuth(): void {
+function clearAuthState(): void {
   stopRefreshCheckTimer();
-  localStorage.removeItem(STORAGE_KEY_REFRESH_TOKEN);
   localStorage.removeItem(STORAGE_KEY_USER);
-  accessToken.value = null;
   currentUser.value = null;
   isAuthenticated.value = false;
   mustChangePassword.value = false;
   temporaryPassword = null;
+  accessTokenExpiresAt = null;
 }
 
-function storeAuth(user: AuthUser, refreshToken: string): void {
+function setAuthState(user: AuthUser, expiresAt: Date): void {
   localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-  localStorage.setItem(STORAGE_KEY_REFRESH_TOKEN, refreshToken);
   currentUser.value = user;
   isAuthenticated.value = true;
   mustChangePassword.value = user.mustChangePassword || false;
+  accessTokenExpiresAt = expiresAt;
 }
 
 export function useAuth() {
@@ -175,11 +163,9 @@ export function useAuth() {
 
   // Fetch current user info from server
   async function fetchCurrentUser(): Promise<boolean> {
-    if (!accessToken.value) return false;
-
     try {
       const response = await fetch(`${API_BASE}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${accessToken.value}` },
+        credentials: "include", // Send cookies
       });
 
       if (!response.ok) {
@@ -220,14 +206,15 @@ export function useAuth() {
         return;
       }
 
-      // Load stored auth
-      loadStoredAuth();
+      // Load stored user info (for optimistic UI)
+      loadStoredUser();
 
-      // If we have a refresh token, try to refresh the access token
+      // Try to refresh the access token to verify session is still valid
+      // This will fail if cookies are expired/invalid
       if (isAuthenticated.value) {
         const refreshed = await refreshAccessToken();
         if (!refreshed) {
-          clearStoredAuth();
+          clearAuthState();
         } else {
           // Fetch latest user info to check mustChangePassword status
           await fetchCurrentUser();
@@ -254,7 +241,7 @@ export function useAuth() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
-        credentials: "include", // Include cookies in response
+        credentials: "include", // Receive and store cookies
       });
 
       if (!response.ok) {
@@ -263,16 +250,15 @@ export function useAuth() {
       }
 
       const data: LoginResponse = await response.json();
-      accessToken.value = data.accessToken;
-      storeAuth(data.user, data.refreshToken);
+      const expiresAt = new Date(data.accessTokenExpiresAt);
+      setAuthState(data.user, expiresAt);
 
       // Store password temporarily if user needs to change it
       if (data.user.mustChangePassword) {
         temporaryPassword = password;
       }
 
-      // Store token expiration time and start proactive refresh timer
-      accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
+      // Start proactive refresh timer
       startRefreshCheckTimer();
 
       return { success: true };
@@ -316,7 +302,7 @@ export function useAuth() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, setupKey }),
-        credentials: "include", // Include cookies in response
+        credentials: "include", // Receive and store cookies
       });
 
       if (!response.ok) {
@@ -325,12 +311,11 @@ export function useAuth() {
       }
 
       const data: LoginResponse = await response.json();
-      accessToken.value = data.accessToken;
-      storeAuth(data.user, data.refreshToken);
+      const expiresAt = new Date(data.accessTokenExpiresAt);
+      setAuthState(data.user, expiresAt);
       hasUsers.value = true;
 
-      // Store token expiration time and start proactive refresh timer
-      accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
+      // Start proactive refresh timer
       startRefreshCheckTimer();
 
       return { success: true };
@@ -340,40 +325,23 @@ export function useAuth() {
     }
   }
 
-  // Refresh access token using stored refresh token
+  // Refresh access token using cookie-based refresh token
   async function refreshAccessToken(): Promise<boolean> {
     return doRefreshAccessToken();
   }
 
   // Logout
   async function logout(): Promise<void> {
-    const storedRefreshToken = localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN);
-
     try {
-      if (accessToken.value) {
-        await fetch(`${API_BASE}/api/auth/logout`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken.value}`,
-          },
-          body: JSON.stringify({ refreshToken: storedRefreshToken }),
-          credentials: "include", // Include cookies to clear them
-        });
-      }
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include", // Send cookies (server will clear them)
+      });
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      clearStoredAuth();
+      clearAuthState();
     }
-  }
-
-  // Get auth header for API requests
-  function getAuthHeader(): Record<string, string> {
-    if (!authEnabled.value || !accessToken.value) {
-      return {};
-    }
-    return { Authorization: `Bearer ${accessToken.value}` };
   }
 
   // Check if current user has required role
@@ -430,7 +398,6 @@ export function useAuth() {
     setup,
     logout,
     refreshAccessToken,
-    getAuthHeader,
     hasRole,
     clearMustChangePassword,
     getTemporaryPassword,

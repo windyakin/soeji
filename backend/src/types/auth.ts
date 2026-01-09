@@ -18,21 +18,15 @@ export interface LoginRequest {
   password: string;
 }
 
+// Tokens are stored in httpOnly cookies, not returned in response body
 export interface LoginResponse {
-  accessToken: string;
   accessTokenExpiresAt: string; // ISO 8601 timestamp
-  refreshToken: string;
   user: AuthUser;
 }
 
-export interface RefreshRequest {
-  refreshToken: string;
-}
-
+// Refresh token is read from httpOnly cookie, no request body needed
 export interface RefreshResponse {
-  accessToken: string;
   accessTokenExpiresAt: string; // ISO 8601 timestamp
-  refreshToken: string;
 }
 
 export interface SetupRequest {

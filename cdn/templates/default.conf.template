@@ -32,7 +32,7 @@ server {
         proxy_cache auth_cache;
         proxy_cache_valid 200 5m;
         proxy_cache_valid 401 1m;
-        proxy_cache_key "$cookie_soeji_auth_token";
+        proxy_cache_key "$cookie_soeji_access_token";
 
         # タイムアウト設定（短め）
         proxy_connect_timeout 5s;
@@ -69,6 +69,11 @@ server {
         # キャッシュ状態をレスポンスヘッダに追加（デバッグ用）
         add_header X-Cache-Status $upstream_cache_status;
         add_header X-Cache-Key "$uri$is_args$args$webp_suffix";
+
+        # キャッシュ制御ヘッダー
+        # 通常は converter からよしななヘッダーが返される
+        # Cloudflare と CloudFront ではキャッシュしないようにする
+        add_header CDN-Cache-Control "no-store";
 
         # Acceptヘッダをコンバータに転送
         proxy_set_header Accept $http_accept;

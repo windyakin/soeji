@@ -83,7 +83,7 @@ services:
     container_name: soeji-cdn
     environment:
       # Backend URL for auth_request
-      - BACKEND_URL=http://backend:3000
+      - BACKEND_URL
     volumes:
       - ./cdn/templates:/etc/nginx/templates:ro
       - cdn_cache:/var/cache/nginx

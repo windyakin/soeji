@@ -21,30 +21,46 @@ import type {
 
 const SETUP_KEY = process.env.SETUP_KEY;
 
-// Cookie name for CDN authentication
-const AUTH_COOKIE_NAME = "soeji_auth_token";
-// Cookie max age in seconds
-// Set slightly longer than JWT expiration (15m + 1m buffer) to ensure Cookie
-// is always valid while Bearer Token is valid. The JWT signature verification
-// in /api/auth/verify will reject expired tokens regardless of Cookie expiry.
-const AUTH_COOKIE_MAX_AGE = 16 * 60;
+// Cookie names
+const ACCESS_TOKEN_COOKIE = "soeji_access_token";
+const REFRESH_TOKEN_COOKIE = "soeji_refresh_token";
 
-// Helper function to set auth cookie
-function setAuthCookie(res: Response, accessToken: string): void {
-  res.cookie(AUTH_COOKIE_NAME, accessToken, {
+// Helper function to set auth cookies
+function setAuthCookies(
+  res: Response,
+  accessToken: string,
+  accessTokenExpiresAt: Date,
+  refreshToken: string,
+  refreshTokenExpiresAt: Date
+): void {
+  // Access token cookie (short-lived, used for API and CDN auth)
+  res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
     httpOnly: true,
     sameSite: "strict",
-    maxAge: AUTH_COOKIE_MAX_AGE * 1000, // Express uses milliseconds
+    expires: accessTokenExpiresAt,
     path: "/",
+  });
+
+  // Refresh token cookie (long-lived, used only for /api/auth/refresh)
+  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
+    httpOnly: true,
+    sameSite: "strict",
+    expires: refreshTokenExpiresAt,
+    path: "/api/auth", // Restrict to auth endpoints only
   });
 }
 
-// Helper function to clear auth cookie
-function clearAuthCookie(res: Response): void {
-  res.clearCookie(AUTH_COOKIE_NAME, {
+// Helper function to clear auth cookies
+function clearAuthCookies(res: Response): void {
+  res.clearCookie(ACCESS_TOKEN_COOKIE, {
     httpOnly: true,
     sameSite: "strict",
     path: "/",
+  });
+  res.clearCookie(REFRESH_TOKEN_COOKIE, {
+    httpOnly: true,
+    sameSite: "strict",
+    path: "/api/auth",
   });
 }
 
@@ -153,12 +169,13 @@ authRouter.post("/setup", async (req, res) => {
       username: user.username,
       role: user.role,
     });
-    const { token: refreshToken } = await generateRefreshToken(user.id);
+    const { token: refreshToken, expiresAt: refreshTokenExpiresAt } = await generateRefreshToken(user.id);
+
+    // Set auth cookies (tokens stored in httpOnly cookies only)
+    setAuthCookies(res, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt);
 
     const response: LoginResponse = {
-      accessToken,
       accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
-      refreshToken,
       user: {
         id: user.id,
         username: user.username,
@@ -166,9 +183,6 @@ authRouter.post("/setup", async (req, res) => {
         mustChangePassword: user.mustChangePassword,
       },
     };
-
-    // Set auth cookie for CDN authentication
-    setAuthCookie(res, accessToken);
 
     res.status(201).json(response);
   } catch (error) {
@@ -188,12 +202,13 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
       username: user.username,
       role: user.role,
     });
-    const { token: refreshToken } = await generateRefreshToken(user.id);
+    const { token: refreshToken, expiresAt: refreshTokenExpiresAt } = await generateRefreshToken(user.id);
+
+    // Set auth cookies (tokens stored in httpOnly cookies only)
+    setAuthCookies(res, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt);
 
     const response: LoginResponse = {
-      accessToken,
       accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
-      refreshToken,
       user: {
         id: user.id,
         username: user.username,
@@ -201,9 +216,6 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
         mustChangePassword: user.mustChangePassword,
       },
     };
-
-    // Set auth cookie for CDN authentication
-    setAuthCookie(res, accessToken);
 
     res.json(response);
   } catch (error) {
@@ -215,10 +227,11 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
 // POST /api/auth/refresh - Refresh access token
 authRouter.post("/refresh", async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    // Get refresh token from cookie
+    const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
 
     if (!refreshToken) {
-      return res.status(400).json({ error: "Refresh token is required" });
+      return res.status(401).json({ error: "Refresh token is required" });
     }
 
     // Verify refresh token
@@ -245,16 +258,14 @@ authRouter.post("/refresh", async (req, res) => {
       username: user.username,
       role: user.role,
     });
-    const { token: newRefreshToken } = await generateRefreshToken(user.id);
+    const { token: newRefreshToken, expiresAt: refreshTokenExpiresAt } = await generateRefreshToken(user.id);
+
+    // Update auth cookies
+    setAuthCookies(res, accessToken, accessTokenExpiresAt, newRefreshToken, refreshTokenExpiresAt);
 
     const response: RefreshResponse = {
-      accessToken,
       accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
-      refreshToken: newRefreshToken,
     };
-
-    // Update auth cookie for CDN authentication
-    setAuthCookie(res, accessToken);
 
     res.json(response);
   } catch (error) {
@@ -266,7 +277,8 @@ authRouter.post("/refresh", async (req, res) => {
 // POST /api/auth/logout - Logout (revoke refresh token, allows mustChangePassword users)
 authRouter.post("/logout", authenticateAllowPasswordChange, async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    // Get refresh token from cookie
+    const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
 
     if (refreshToken) {
       // Revoke specific refresh token
@@ -279,8 +291,8 @@ authRouter.post("/logout", authenticateAllowPasswordChange, async (req, res) => 
       await revokeAllUserRefreshTokens(req.user!.id);
     }
 
-    // Clear auth cookie
-    clearAuthCookie(res);
+    // Clear auth cookies
+    clearAuthCookies(res);
 
     res.json({ success: true });
   } catch (error) {
@@ -315,7 +327,7 @@ authRouter.get("/verify", (req, res) => {
   }
 
   // Extract token from cookie
-  const token = req.cookies?.soeji_auth_token;
+  const token = req.cookies?.[ACCESS_TOKEN_COOKIE];
   if (!token) {
     return res.status(401).send();
   }
