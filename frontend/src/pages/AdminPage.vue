@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
-import AccountSettings from '../components/AccountSettings.vue'
-import PinSettings from '../components/PinSettings.vue'
-import FullscreenSettings from '../components/FullscreenSettings.vue'
-import VersionInfo from '../components/VersionInfo.vue'
+import UserManagement from '../components/UserManagement.vue'
 
 const router = useRouter()
 
@@ -14,10 +11,10 @@ function goBack() {
 </script>
 
 <template>
-  <div class="settings-page">
-    <div class="settings-container">
-      <header class="settings-header">
-        <div class="settings-header-inner">
+  <div class="admin-page">
+    <div class="admin-container">
+      <header class="admin-header">
+        <div class="admin-header-inner">
           <Button
             icon="pi pi-arrow-left"
             text
@@ -25,33 +22,30 @@ function goBack() {
             @click="goBack"
             aria-label="Back"
           />
-          <h1>Settings</h1>
+          <h1>Server Administration</h1>
         </div>
       </header>
 
-      <div class="settings-content">
-        <AccountSettings />
-        <PinSettings />
-        <FullscreenSettings />
-        <VersionInfo />
+      <div class="admin-content">
+        <UserManagement />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.settings-page {
+.admin-page {
   min-height: 100vh;
   background: var(--p-surface-0);
 }
 
-.settings-container {
+.admin-container {
   max-width: 48rem;
   margin: 0 auto;
   padding: 1rem 0.65rem;
 }
 
-.settings-header {
+.admin-header {
   position: fixed;
   top: 0;
   left: 0;
@@ -61,7 +55,7 @@ function goBack() {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.settings-header-inner {
+.admin-header-inner {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -70,7 +64,7 @@ function goBack() {
   padding: 0.5rem 0.65rem;
 }
 
-.settings-header h1 {
+.admin-header h1 {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--p-text-color);
@@ -78,12 +72,12 @@ function goBack() {
 }
 
 @media (max-width: 768px) {
-  .settings-header h1 {
+  .admin-header h1 {
     font-size: 1.25rem;
   }
 }
 
-.settings-content {
+.admin-content {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;

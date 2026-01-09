@@ -7,6 +7,7 @@ import Button from "primevue/button";
 import Tag from "primevue/tag";
 import type { SearchHit } from "../types/api";
 import { deleteImage } from "../composables/useApi";
+import { useAuth } from "../composables/useAuth";
 
 const props = defineProps<{
   image: SearchHit | null;
@@ -35,6 +36,7 @@ watch(
 );
 
 const confirm = useConfirm();
+const { canEdit } = useAuth();
 const deleting = ref(false);
 const isMobile = ref(false);
 
@@ -214,8 +216,8 @@ function handleDelete() {
         </a>
       </div>
 
-      <!-- Delete button -->
-      <div class="info-section delete-section">
+      <!-- Delete button (only for editors) -->
+      <div v-if="canEdit" class="info-section delete-section">
         <Button
           label="Delete Image"
           icon="pi pi-trash"

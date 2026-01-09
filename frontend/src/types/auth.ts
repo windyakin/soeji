@@ -1,0 +1,57 @@
+export type UserRole = "admin" | "user" | "guest";
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: UserRole;
+  mustChangePassword?: boolean;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+// Tokens are stored in httpOnly cookies, not returned in response body
+export interface LoginResponse {
+  accessTokenExpiresAt: string;
+  user: AuthUser;
+}
+
+// Refresh token is read from httpOnly cookie, no request body needed
+export interface RefreshResponse {
+  accessTokenExpiresAt: string;
+}
+
+export interface AuthConfigResponse {
+  authEnabled: boolean;
+  hasUsers: boolean;
+  setupKeyRequired: boolean;
+}
+
+export interface SetupRequest {
+  username: string;
+  password: string;
+  setupKey: string;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  password: string;
+  role: UserRole;
+}
+
+export interface UpdateUserRequest {
+  username?: string;
+  password?: string;
+  role?: UserRole;
+}
+
+export interface UserListItem {
+  id: string;
+  username: string;
+  role: UserRole;
+  mustChangePassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

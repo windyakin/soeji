@@ -1,14 +1,37 @@
 import { ref, computed } from "vue";
 import type { SearchResponse, SearchHit, BatchTagResponse, StatsResponse } from "../types/api";
+import { useAuth } from "./useAuth";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+// Helper function to handle API requests with cookie-based auth and 401 retry
+async function fetchWithAuth(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const { refreshAccessToken, authEnabled } = useAuth();
+
+  // Always include credentials for cookie-based auth
+  let response = await fetch(url, { ...options, credentials: "include" });
+
+  // If 401 and auth is enabled, try to refresh token and retry
+  if (response.status === 401 && authEnabled.value) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      // Retry with refreshed cookies
+      response = await fetch(url, { ...options, credentials: "include" });
+    }
+  }
+
+  return response;
+}
 
 // Batch tagging API functions
 export async function addTagsToImages(
   imageIds: string[],
   tags: string[]
 ): Promise<BatchTagResponse> {
-  const response = await fetch(`${API_BASE}/api/images/tags`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/images/tags`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ imageIds, tags }),
@@ -26,7 +49,7 @@ export async function removeTagFromImage(
   imageId: string,
   tagId: string
 ): Promise<void> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/images/${imageId}/tags/${tagId}`,
     { method: "DELETE" }
   );
@@ -38,7 +61,7 @@ export async function removeTagFromImage(
 }
 
 export async function deleteImage(imageId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/images/${imageId}`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/images/${imageId}`, {
     method: "DELETE",
   });
 
@@ -50,13 +73,32 @@ export async function deleteImage(imageId: string): Promise<void> {
 
 // Stats API function
 export async function fetchStats(): Promise<StatsResponse> {
-  const response = await fetch(`${API_BASE}/api/stats`);
+  const response = await fetchWithAuth(`${API_BASE}/api/stats`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch stats");
   }
 
   return response.json();
+}
+
+// Change password API function
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  const response = await fetchWithAuth(`${API_BASE}/api/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Failed to change password" }));
+    return { success: false, error: error.error || "Failed to change password" };
+  }
+
+  return { success: true };
 }
 
 export type SearchMode = "or" | "and";
@@ -92,7 +134,7 @@ export function useInfiniteSearch() {
       params.set("offset", "0");
       params.set("mode", searchMode.value);
 
-      const response = await fetch(`${API_BASE}/api/search?${params}`);
+      const response = await fetchWithAuth(`${API_BASE}/api/search?${params}`);
       if (!response.ok) {
         throw new Error("Search failed");
       }
@@ -125,7 +167,7 @@ export function useInfiniteSearch() {
       params.set("offset", images.value.length.toString());
       params.set("mode", searchMode.value);
 
-      const response = await fetch(`${API_BASE}/api/search?${params}`);
+      const response = await fetchWithAuth(`${API_BASE}/api/search?${params}`);
       if (!response.ok) {
         throw new Error("Failed to load more");
       }

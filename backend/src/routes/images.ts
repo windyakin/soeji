@@ -3,9 +3,14 @@ import { PrismaClient } from "@prisma/client";
 import { MeiliSearch } from "meilisearch";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { tagCache } from "../services/tagCache.js";
+import { authenticate } from "../middleware/auth.js";
+import { allRoles, editorsOnly } from "../middleware/roleGuard.js";
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // Meilisearch client
 const meilisearchClient = new MeiliSearch({
@@ -32,7 +37,8 @@ function buildS3Url(s3Key: string): string {
   return `${S3_PUBLIC_ENDPOINT}/${S3_BUCKET}/${s3Key}`;
 }
 
-router.get("/", async (req, res) => {
+// GET routes - all roles can access
+router.get("/", allRoles, async (req, res) => {
   try {
     const { limit = "20", offset = "0" } = req.query;
 
@@ -68,7 +74,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", allRoles, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -145,8 +151,8 @@ async function updateMeilisearchIndex(imageIds: string[]): Promise<void> {
   }
 }
 
-// POST /api/images/tags - Batch add tags to multiple images
-router.post("/tags", async (req, res) => {
+// POST /api/images/tags - Batch add tags to multiple images (admin/user only)
+router.post("/tags", editorsOnly, async (req, res) => {
   try {
     const { imageIds, tags } = req.body as { imageIds: string[]; tags: string[] };
 
@@ -218,8 +224,8 @@ router.post("/tags", async (req, res) => {
   }
 });
 
-// DELETE /api/images/:imageId/tags/:tagId - Remove tag from image
-router.delete("/:imageId/tags/:tagId", async (req, res) => {
+// DELETE /api/images/:imageId/tags/:tagId - Remove tag from image (admin/user only)
+router.delete("/:imageId/tags/:tagId", editorsOnly, async (req, res) => {
   try {
     const { imageId, tagId } = req.params;
 
@@ -256,8 +262,8 @@ router.delete("/:imageId/tags/:tagId", async (req, res) => {
   }
 });
 
-// DELETE /api/images/:id - Delete an image
-router.delete("/:id", async (req, res) => {
+// DELETE /api/images/:id - Delete an image (admin/user only)
+router.delete("/:id", editorsOnly, async (req, res) => {
   const { id } = req.params;
 
   try {

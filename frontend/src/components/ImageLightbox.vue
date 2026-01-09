@@ -57,7 +57,7 @@ async function downloadImage() {
   isDownloading.value = true;
   try {
     const downloadUrl = getDownloadUrl(currentImage.value.s3Url);
-    const response = await fetch(downloadUrl);
+    const response = await fetch(downloadUrl, { credentials: "include" });
     if (!response.ok) {
       throw new Error(`Download failed: ${response.status}`);
     }

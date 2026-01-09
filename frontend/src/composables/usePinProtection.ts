@@ -35,6 +35,17 @@ let delayCheckTimer: ReturnType<typeof setTimeout> | null = null
 // Track whether visibility listener has been set up
 let visibilityListenerSetup = false
 
+// Auth flow paths where PIN lock should not be shown
+const AUTH_FLOW_PATHS = ['/login', '/setup', '/force-change-password']
+
+/**
+ * Check if the current path is an auth flow path (login, setup, password change)
+ * PIN lock should not be shown on these paths
+ */
+function isAuthFlowPath(): boolean {
+  return AUTH_FLOW_PATHS.some(path => window.location.pathname.startsWith(path))
+}
+
 /**
  * Hash a PIN code using SHA-256
  * Falls back to simple hash if crypto.subtle is not available (non-HTTPS)
@@ -161,6 +172,8 @@ export function usePinProtection() {
 
     document.addEventListener('visibilitychange', () => {
       if (!isPinEnabled.value) return
+      // Skip lock during auth flow (login, setup, password change)
+      if (isAuthFlowPath()) return
 
       if (document.hidden) {
         // App went to background
@@ -191,8 +204,12 @@ export function usePinProtection() {
 
   /**
    * Check if unlock is needed
+   * Returns false during auth flow (login, setup, password change) to prioritize authentication
    */
   const needsUnlock = computed(() => {
+    if (isAuthFlowPath()) {
+      return false
+    }
     return isPinEnabled.value && !isUnlocked.value
   })
 

@@ -183,6 +183,7 @@ PostgreSQLへの負荷を軽減。
 | `/api/images/:id` | GET | 画像詳細取得 |
 | `/api/tags` | GET | タグ一覧・サジェスト |
 | `/api/stats` | GET | 統計情報（キャッシュ付き） |
+| `/api/auth/verify` | GET | CDN認証用トークン検証 |
 
 ### 統計APIキャッシュ
 
@@ -215,7 +216,7 @@ PostgreSQLへの負荷を軽減。
 | `converter/main.go` | Converterエントリーポイント |
 | `converter/handlers.go` | HTTPハンドラー |
 | `converter/converter.go` | PNG→WebP変換ロジック |
-| `cdn/nginx.conf` | CDNキャッシュ設定 |
+| `cdn/templates/default.conf.template` | CDNサーバー設定（envsubstテンプレート） |
 
 ## Docker構成
 
@@ -252,16 +253,37 @@ PostgreSQLへの負荷を軽減。
 ### 画像配信フロー
 
 ```
-[Client] → [cdn:9080] → [converter:8000] → [rustfs:9000]
+[Client] → [frontend:80] → [cdn:9080] → (認証成功) → [converter:8000] → [rustfs:9000]
+                              ↓  ↑  auth_request
+                  [backend:3000/api/auth/verify]
 ```
 
-1. クライアントがCDN（nginx）経由で画像をリクエスト
-2. CDNキャッシュにヒットすれば即座に返却
-3. キャッシュミス時はconverterにプロキシ
-4. converterがrustfsから画像を取得
-5. Accept: image/webp ヘッダがあればWebP変換
-6. クエリパラメータでリサイズ（サムネイル生成）
-7. CDNがレスポンスをキャッシュ
+1. クライアントが `/images` を通ってCDN（nginx）を経由し画像をリクエスト（Cookie: soeji_auth_token付き）
+2. CDNがBackendの`/api/auth/verify`に認証サブリクエストを送信
+    - 認証結果は5分間キャッシュされる
+3. 認証成功（200）の場合のみ処理を継続、失敗（401）の場合は401を返却
+4. CDNキャッシュにヒットすれば即座に返却
+5. キャッシュミス時はconverterにプロキシ
+6. converterがrustfsから画像を取得
+7. `Accept: image/webp` ヘッダがあればWebP変換
+8. クエリパラメータでリサイズ（サムネイル生成）
+9. CDNがレスポンスをキャッシュ
+
+### CDN認証（auth_request）
+
+- **Cookie名**: `soeji_auth_token`（JWT Access Token）
+- **認証エンドポイント**: `/api/auth/verify`
+- **認証キャッシュ**: 5分間（auth_cache）
+- **AUTH_ENABLED=false時**: Backendが常に200を返すため認証スキップと同等
+- **関連ファイル**:
+  - `cdn/templates/default.conf.template`（nginx設定テンプレート）
+  - `backend/src/routes/auth.ts`（verify エンドポイント）
+
+認証Cookie発行タイミング：
+- ログイン成功時（`/api/auth/login`）
+- セットアップ完了時（`/api/auth/setup`）
+- トークンリフレッシュ時（`/api/auth/refresh`）
+- ログアウト時にCookieをクリア（`/api/auth/logout`）
 
 ### Converter API
 

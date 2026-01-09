@@ -1,8 +1,13 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { authenticate } from "../middleware/auth.js";
+import { allRoles } from "../middleware/roleGuard.js";
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// All tag endpoints require authentication (any role)
+router.use(authenticate, allRoles);
 
 router.get("/", async (req, res) => {
   try {

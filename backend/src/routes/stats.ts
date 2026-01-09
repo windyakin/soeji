@@ -1,8 +1,13 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { authenticate } from "../middleware/auth.js";
+import { allRoles } from "../middleware/roleGuard.js";
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// All stats endpoints require authentication (any role)
+router.use(authenticate, allRoles);
 
 // Cache TTLs
 const BASIC_STATS_TTL = 5 * 60 * 1000; // 5 minutes
