@@ -1,4 +1,5 @@
 import { ref, computed } from "vue";
+import router from "../router";
 import type {
   AuthUser,
   AuthConfigResponse,
@@ -95,6 +96,11 @@ async function doRefreshAccessToken(): Promise<boolean> {
     });
 
     if (!response.ok) {
+      // 401 Unauthorized - force logout and redirect to login
+      if (response.status === 401) {
+        clearStoredAuth();
+        router.push("/login");
+      }
       return false;
     }
 

@@ -18,6 +18,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.7",
+    "@types/morgan": "^1.9.10",
     "@types/node": "^22.0.0",
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
@@ -37,6 +38,7 @@
     "express": "^5.0.1",
     "jsonwebtoken": "^9.0.2",
     "meilisearch": "^0.45.0",
+    "morgan": "^1.10.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0"

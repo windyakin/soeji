@@ -71,6 +71,18 @@ export async function generateRefreshToken(
     },
   });
 
+  // Clean up revoked or expired tokens for this user (non-blocking)
+  prisma.refreshToken
+    .deleteMany({
+      where: {
+        userId,
+        OR: [{ revokedAt: { not: null } }, { expiresAt: { lt: new Date() } }],
+      },
+    })
+    .catch((err) => {
+      console.error("Failed to cleanup refresh tokens:", err);
+    });
+
   return { token, expiresAt };
 }
 

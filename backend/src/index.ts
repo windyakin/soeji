@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import morgan from "morgan";
 import passport from "./config/passport.js";
 import { searchRouter } from "./routes/search.js";
 import { imagesRouter } from "./routes/images.js";
@@ -17,6 +18,13 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
+
+// Access log
+app.use(
+  morgan(":method :url :status :res[content-length] - :response-time ms", {
+    skip: (req) => req.url === "/health",
+  })
+);
 
 // Initialize Passport (no session)
 app.use(passport.initialize());
