@@ -25,19 +25,31 @@ const emit = defineEmits<{
 const { fullscreenMode } = useFullscreenSettings();
 
 const overlayRef = ref<HTMLElement | null>(null);
-const isImageLoading = ref(false);
-const showLoadingSpinner = ref(false);
 const isFullscreen = ref(false);
 const showFullscreenControls = ref(false);
+const showFullscreenCursor = ref(false);
 let fullscreenControlsTimeout: ReturnType<typeof setTimeout> | null = null;
-let loadingSpinnerTimeout: ReturnType<typeof setTimeout> | null = null;
-const loadingSpinnerDelay = 50; // ms before showing spinner
+let fullscreenCursorTimeout: ReturnType<typeof setTimeout> | null = null;
 
-// Preload状態の管理
-const isNextImageLoaded = ref(false);
-const isPrevImageLoaded = ref(false);
-const isNextImageLoading = ref(false);
-const isPrevImageLoading = ref(false);
+// 画像ロードキャッシュ: s3Url -> 'loading' | 'loaded' | 'error'
+const imageLoadCache = ref<Map<string, 'loading' | 'loaded' | 'error'>>(new Map());
+// プリロード用のImageオブジェクトを保持（ロード完了まで参照を維持）
+const imageLoaders = new Map<string, HTMLImageElement>();
+
+// 現在ロード中の画像数
+const loadingCount = computed(() =>
+  [...imageLoadCache.value.values()].filter(s => s === 'loading').length
+);
+
+// 現在の画像がロード済みかどうか
+const isCurrentImageReady = computed(() =>
+  imageLoadCache.value.get(currentImage.value?.s3Url ?? '') === 'loaded'
+);
+
+// ローディングスピナー表示条件（現在の画像がロード中、またはプリロード中の画像がある）
+const showLoadingSpinner = computed(() =>
+  !isCurrentImageReady.value || loadingCount.value > 0
+);
 
 // Swipe handling
 const touchStartX = ref(0);
@@ -46,8 +58,6 @@ const isSwiping = ref(false);
 const swipeThreshold = 50; // minimum distance for swipe
 
 const currentImage = computed(() => props.images[props.currentIndex]);
-const prevImage = computed(() => props.images[props.currentIndex - 1]);
-const nextImage = computed(() => props.images[props.currentIndex + 1]);
 
 const isDownloading = ref(false);
 
@@ -80,97 +90,86 @@ async function downloadImage() {
   }
 }
 
-// Reset loading state when image changes and maintain focus
+// プリロード対象のインデックス（現在位置から前後2枚）
+const preloadIndices = computed(() => {
+  const indices: number[] = [];
+  for (let offset = -2; offset <= 2; offset++) {
+    const idx = props.currentIndex + offset;
+    if (idx >= 0 && idx < props.images.length) {
+      indices.push(idx);
+    }
+  }
+  return indices;
+});
+
+// プリロード対象の画像URL一覧
+const imagesToPreload = computed(() =>
+  preloadIndices.value
+    .map(i => props.images[i]?.s3Url)
+    .filter((url): url is string => !!url)
+);
+
+// 画像をプリロードする関数
+function preloadImage(url: string) {
+  // 既にロード中 or ロード済みならスキップ
+  if (imageLoadCache.value.has(url)) return;
+
+  imageLoadCache.value.set(url, 'loading');
+
+  const img = new Image();
+  imageLoaders.set(url, img);
+
+  img.onload = () => {
+    imageLoadCache.value.set(url, 'loaded');
+    imageLoaders.delete(url);
+  };
+
+  img.onerror = () => {
+    imageLoadCache.value.set(url, 'error');
+    imageLoaders.delete(url);
+  };
+
+  img.src = url;
+}
+
+// プリロード対象の変更を監視してプリロード開始 & 範囲外のキャッシュを削除
+watch(imagesToPreload, (urls, oldUrls) => {
+  // 新しいURLをプリロード
+  urls.forEach(preloadImage);
+
+  // 範囲外になったロード済み画像をキャッシュから削除（ロード中は継続）
+  if (oldUrls) {
+    const urlSet = new Set(urls);
+    for (const oldUrl of oldUrls) {
+      if (!urlSet.has(oldUrl) && imageLoadCache.value.get(oldUrl) === 'loaded') {
+        imageLoadCache.value.delete(oldUrl);
+      }
+    }
+  }
+}, { immediate: true });
+
+// 画像変更時にフォーカスを維持
 watch(
   () => currentImage.value?.s3Url,
   async () => {
-    isImageLoading.value = true;
-    updateLoadingSpinner();
-
-    // Re-focus overlay to maintain keyboard control
     await nextTick();
     overlayRef.value?.focus();
   }
 );
 
-// Reset preload state when next image changes
-watch(
-  () => nextImage.value?.s3Url,
-  (newUrl) => {
-    isNextImageLoaded.value = false;
-    isNextImageLoading.value = !!newUrl;
-    if (newUrl) {
-      updateLoadingSpinner();
-    }
-  }
-);
-
-// Reset preload state when prev image changes
-watch(
-  () => prevImage.value?.s3Url,
-  (newUrl) => {
-    isPrevImageLoaded.value = false;
-    isPrevImageLoading.value = !!newUrl;
-    if (newUrl) {
-      updateLoadingSpinner();
-    }
-  }
-);
-
-// Update loading spinner based on any loading activity
-function updateLoadingSpinner() {
-  showLoadingSpinner.value = false;
-
-  // Clear existing timeout
-  if (loadingSpinnerTimeout) {
-    clearTimeout(loadingSpinnerTimeout);
-  }
-
-  // Check if any image is loading
-  const anyImageLoading = isImageLoading.value || isNextImageLoading.value || isPrevImageLoading.value;
-
-  if (anyImageLoading) {
-    // Show spinner after delay
-    loadingSpinnerTimeout = setTimeout(() => {
-      if (isImageLoading.value || isNextImageLoading.value || isPrevImageLoading.value) {
-        showLoadingSpinner.value = true;
-      }
-    }, loadingSpinnerDelay);
-  }
-}
-
+// メイン画像のロードハンドラ（キャッシュを更新）
 function onImageLoad() {
-  isImageLoading.value = false;
-  updateLoadingSpinner();
+  const url = currentImage.value?.s3Url;
+  if (url) {
+    imageLoadCache.value.set(url, 'loaded');
+  }
 }
 
 function onImageError() {
-  isImageLoading.value = false;
-  updateLoadingSpinner();
-}
-
-function onNextImageLoad() {
-  isNextImageLoading.value = false;
-  isNextImageLoaded.value = true;
-  updateLoadingSpinner();
-}
-
-function onNextImageError() {
-  isNextImageLoading.value = false;
-  isNextImageLoaded.value = false;
-  updateLoadingSpinner();
-}
-
-function onPrevImageLoad() {
-  isPrevImageLoading.value = false;
-  isPrevImageLoaded.value = true;
-  updateLoadingSpinner();
-}
-
-function onPrevImageError() {
-  isPrevImageLoading.value = false;
-  isPrevImageLoaded.value = false;
-  updateLoadingSpinner();
+  const url = currentImage.value?.s3Url;
+  if (url) {
+    imageLoadCache.value.set(url, 'error');
+  }
 }
 
 // Lock body scroll and update theme-color when lightbox is visible
@@ -212,6 +211,8 @@ onUnmounted(() => {
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
   }
+  // プリロード中の画像をクリア
+  imageLoaders.clear();
 });
 
 const hasPrev = computed(() => props.currentIndex > 0);
@@ -239,9 +240,6 @@ async function close() {
 function prev() {
   if (isNavigating.value || !hasPrev.value) return;
 
-  // プリロード画像が読み込まれていない場合は進まない
-  if (!isPrevImageLoaded.value) return;
-
   isNavigating.value = true;
   emit("update:currentIndex", props.currentIndex - 1);
 
@@ -254,9 +252,6 @@ function next() {
   if (isNavigating.value) return;
 
   if (hasNext.value) {
-    // プリロード画像が読み込まれていない場合は進まない
-    if (!isNextImageLoaded.value) return;
-
     isNavigating.value = true;
     emit("update:currentIndex", props.currentIndex + 1);
 
@@ -391,6 +386,23 @@ function handleFullscreenCenterTap() {
   }, 3000);
 }
 
+function handleFullscreenMouseMove() {
+  if (!isFullscreen.value) return;
+
+  showFullscreenCursor.value = true;
+  showFullscreenControls.value = true;
+
+  if (fullscreenCursorTimeout) {
+    clearTimeout(fullscreenCursorTimeout);
+  }
+
+  fullscreenCursorTimeout = setTimeout(() => {
+    showFullscreenCursor.value = false;
+    showFullscreenControls.value = false;
+    fullscreenCursorTimeout = null;
+  }, 2000);
+}
+
 function handleTouchStart(e: TouchEvent) {
   const touch = e.touches[0];
   if (e.touches.length !== 1 || !touch) return;
@@ -439,9 +451,10 @@ defineExpose({ focus });
       <div
         v-if="visible && currentImage"
         class="lightbox-overlay"
-        :class="{ fullscreen: isFullscreen, 'panel-open': infoPanelOpen && !isFullscreen }"
+        :class="{ fullscreen: isFullscreen, 'fullscreen-cursor-visible': isFullscreen && showFullscreenCursor, 'panel-open': infoPanelOpen && !isFullscreen }"
         @keydown="handleKeydown"
         @wheel.prevent
+        @mousemove="handleFullscreenMouseMove"
         @touchstart="handleTouchStart"
         @touchend="handleTouchEnd"
         tabindex="0"
@@ -450,6 +463,7 @@ defineExpose({ focus });
         <!-- Normal mode header -->
         <div v-if="!isFullscreen" class="lightbox-header">
           <Button
+            v-tooltip.bottom="'Download original'"
             :icon="isDownloading ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
             severity="secondary"
             text
@@ -460,6 +474,7 @@ defineExpose({ focus });
             aria-label="Download original"
           />
           <Button
+            v-tooltip.bottom="'Show info (Ctrl+I)'"
             icon="pi pi-info-circle"
             severity="secondary"
             text
@@ -469,6 +484,7 @@ defineExpose({ focus });
             aria-label="Show image info"
           />
           <Button
+            v-tooltip.bottom="'Fullscreen'"
             icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
             severity="secondary"
             text
@@ -492,6 +508,7 @@ defineExpose({ focus });
         <Transition name="fade">
           <div v-if="isFullscreen && showFullscreenControls" class="fullscreen-header">
             <Button
+              v-tooltip.bottom="'Exit fullscreen (Esc)'"
               icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
               severity="secondary"
               text
@@ -506,7 +523,7 @@ defineExpose({ focus });
         <!-- Navigation areas -->
         <div
           class="nav-area nav-left"
-          :class="{ disabled: !hasPrev, fullscreen: isFullscreen }"
+          :class="{ disabled: !hasPrev, fullscreen: isFullscreen, 'cursor-visible': showFullscreenCursor }"
           @click="(e) => handleNavClick(e, 'left')"
         >
           <i v-if="hasPrev && !isFullscreen" class="pi pi-chevron-left nav-icon"></i>
@@ -514,7 +531,7 @@ defineExpose({ focus });
 
         <div
           class="nav-area nav-right"
-          :class="{ disabled: !hasNext && !canLoadMore, loading: loadingMore, fullscreen: isFullscreen }"
+          :class="{ disabled: !hasNext && !canLoadMore, loading: loadingMore, fullscreen: isFullscreen, 'cursor-visible': showFullscreenCursor }"
           @click="(e) => handleNavClick(e, 'right')"
         >
           <template v-if="!isFullscreen">
@@ -544,24 +561,6 @@ defineExpose({ focus });
           <i class="pi pi-spin pi-spinner"></i>
         </div>
 
-        <!-- Preload previous and next images -->
-        <img
-          v-show="prevImage"
-          :src="prevImage?.s3Url"
-          class="preload-image"
-          aria-hidden="true"
-          @load="onPrevImageLoad"
-          @error="onPrevImageError"
-        />
-        <img
-          v-show="nextImage"
-          :src="nextImage?.s3Url"
-          class="preload-image"
-          aria-hidden="true"
-          @load="onNextImageLoad"
-          @error="onNextImageError"
-        />
-
         <!-- Image counter (hidden in fullscreen) -->
         <div v-if="!isFullscreen" class="lightbox-footer">
           <span class="image-counter">
@@ -588,6 +587,11 @@ defineExpose({ focus });
 
 .lightbox-overlay.fullscreen {
   background: black;
+  cursor: none;
+}
+
+.lightbox-overlay.fullscreen-cursor-visible {
+  cursor: auto;
 }
 
 /* Desktop only: shift content when panel is open */
@@ -664,6 +668,11 @@ defineExpose({ focus });
 
 .nav-area.fullscreen {
   background: transparent;
+  cursor: none;
+}
+
+.nav-area.fullscreen.cursor-visible {
+  cursor: pointer;
 }
 
 .nav-area.fullscreen:not(.disabled):active {
@@ -726,14 +735,6 @@ defineExpose({ focus });
 .loading-indicator .pi-spinner {
   font-size: 1.25rem;
   color: white;
-}
-
-.preload-image {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
 }
 
 .lightbox-image {

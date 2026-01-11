@@ -23,11 +23,7 @@ onMounted(async () => {
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return new Date(dateString).toISOString().split("T")[0] ?? "-";
 }
 
 const lastUpdated = computed(() => {
