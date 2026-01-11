@@ -280,6 +280,7 @@ router.delete("/:id", editorsOnly, async (req, res) => {
 
     // Delete from S3 (ignore errors - file may not exist)
     if (image?.s3Key) {
+      // Delete the image file
       try {
         await s3Client.send(
           new DeleteObjectCommand({
@@ -289,6 +290,19 @@ router.delete("/:id", editorsOnly, async (req, res) => {
         );
       } catch (s3Error) {
         console.warn(`S3 delete failed for ${image.s3Key}:`, s3Error);
+      }
+
+      // Delete the metadata JSON file
+      const metadataKey = image.s3Key.replace(/\.png$/, ".metadata.json");
+      try {
+        await s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: metadataKey,
+          })
+        );
+      } catch (s3Error) {
+        console.warn(`S3 metadata delete failed for ${metadataKey}:`, s3Error);
       }
     }
 

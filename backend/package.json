@@ -9,7 +9,9 @@
     "dev": "tsx watch src/index.ts",
     "test": "vitest",
     "test:run": "vitest run",
-    "db:generate": "prisma generate --schema=../service/prisma/schema.prisma"
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push"
   },
   "type": "module",
   "devDependencies": {
@@ -23,6 +25,7 @@
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
+    "@types/multer": "^1.4.12",
     "prisma": "^6.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
@@ -39,6 +42,7 @@
     "jsonwebtoken": "^9.0.2",
     "meilisearch": "^0.45.0",
     "morgan": "^1.10.1",
+    "multer": "^1.4.5-lts.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0"

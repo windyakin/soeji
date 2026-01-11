@@ -4,21 +4,21 @@
   "description": "Image metadata management system with PNG comment extraction",
   "private": true,
   "workspaces": [
-    "service",
+    "watcher",
     "backend",
     "frontend"
   ],
   "scripts": {
     "dev": "npm-run-all --parallel dev:*",
-    "dev:service": "npm run dev -w @soeji/service",
+    "dev:watcher": "npm run dev -w @soeji/watcher",
     "dev:backend": "npm run dev -w @soeji/backend",
     "dev:frontend": "npm run dev -w @soeji/frontend",
     "build": "npm-run-all build:*",
-    "build:service": "npm run build -w @soeji/service",
+    "build:watcher": "npm run build -w @soeji/watcher",
     "build:backend": "npm run build -w @soeji/backend",
     "build:frontend": "npm run build -w @soeji/frontend",
     "test": "npm-run-all test:*",
-    "test:service": "npm run test:run -w @soeji/service",
+    "test:watcher": "npm run test:run -w @soeji/watcher",
     "test:backend": "npm run test:run -w @soeji/backend"
   },
   "devDependencies": {

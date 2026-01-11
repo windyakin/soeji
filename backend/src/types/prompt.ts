@@ -33,7 +33,7 @@ export interface PngComment {
   [key: string]: unknown;
 }
 
-export type TagSource = "prompt" | "v4_base" | "v4_char" | "negative";
+export type TagSource = "prompt" | "v4_base" | "v4_char" | "negative" | "user";
 
 export interface WeightedTag {
   name: string;

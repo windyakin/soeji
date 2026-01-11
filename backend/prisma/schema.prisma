@@ -8,20 +8,22 @@ datasource db {
 }
 
 model Image {
-  id        String   @id @default(uuid())
-  filename  String
-  s3Key     String   @unique
-  fileHash  String   @unique
-  width     Int?
-  height    Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  filename        String
+  s3Key           String   @unique
+  fileHash        String   @unique
+  width           Int?
+  height          Int?
+  hasMetadataFile Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   metadata ImageMetadata?
   tags     ImageTag[]
 
   @@index([filename])
   @@index([createdAt])
+  @@index([hasMetadataFile])
 }
 
 model ImageMetadata {
@@ -70,7 +72,7 @@ model ImageTag {
   // Weight information
   weight     Float   @default(1.0) // 1.0 = normal, >1 = emphasized, <0 = negative
   isNegative Boolean @default(false)
-  source     String? // "prompt", "v4_base", "v4_char", "negative"
+  source     String? // "prompt", "v4_base", "v4_char", "negative", "user"
 
   @@id([imageId, tagId])
   @@index([tagId])
