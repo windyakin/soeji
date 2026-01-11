@@ -27,7 +27,9 @@ const { fullscreenMode } = useFullscreenSettings();
 const overlayRef = ref<HTMLElement | null>(null);
 const isFullscreen = ref(false);
 const showFullscreenControls = ref(false);
+const showFullscreenCursor = ref(false);
 let fullscreenControlsTimeout: ReturnType<typeof setTimeout> | null = null;
+let fullscreenCursorTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // 画像ロードキャッシュ: s3Url -> 'loading' | 'loaded' | 'error'
 const imageLoadCache = ref<Map<string, 'loading' | 'loaded' | 'error'>>(new Map());
@@ -384,6 +386,23 @@ function handleFullscreenCenterTap() {
   }, 3000);
 }
 
+function handleFullscreenMouseMove() {
+  if (!isFullscreen.value) return;
+
+  showFullscreenCursor.value = true;
+  showFullscreenControls.value = true;
+
+  if (fullscreenCursorTimeout) {
+    clearTimeout(fullscreenCursorTimeout);
+  }
+
+  fullscreenCursorTimeout = setTimeout(() => {
+    showFullscreenCursor.value = false;
+    showFullscreenControls.value = false;
+    fullscreenCursorTimeout = null;
+  }, 2000);
+}
+
 function handleTouchStart(e: TouchEvent) {
   const touch = e.touches[0];
   if (e.touches.length !== 1 || !touch) return;
@@ -432,9 +451,10 @@ defineExpose({ focus });
       <div
         v-if="visible && currentImage"
         class="lightbox-overlay"
-        :class="{ fullscreen: isFullscreen, 'panel-open': infoPanelOpen && !isFullscreen }"
+        :class="{ fullscreen: isFullscreen, 'fullscreen-cursor-visible': isFullscreen && showFullscreenCursor, 'panel-open': infoPanelOpen && !isFullscreen }"
         @keydown="handleKeydown"
         @wheel.prevent
+        @mousemove="handleFullscreenMouseMove"
         @touchstart="handleTouchStart"
         @touchend="handleTouchEnd"
         tabindex="0"
@@ -443,6 +463,7 @@ defineExpose({ focus });
         <!-- Normal mode header -->
         <div v-if="!isFullscreen" class="lightbox-header">
           <Button
+            v-tooltip.bottom="'Download original'"
             :icon="isDownloading ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
             severity="secondary"
             text
@@ -453,6 +474,7 @@ defineExpose({ focus });
             aria-label="Download original"
           />
           <Button
+            v-tooltip.bottom="'Show info (Ctrl+I)'"
             icon="pi pi-info-circle"
             severity="secondary"
             text
@@ -462,6 +484,7 @@ defineExpose({ focus });
             aria-label="Show image info"
           />
           <Button
+            v-tooltip.bottom="'Fullscreen'"
             icon="pi pi-arrow-up-right-and-arrow-down-left-from-center"
             severity="secondary"
             text
@@ -485,6 +508,7 @@ defineExpose({ focus });
         <Transition name="fade">
           <div v-if="isFullscreen && showFullscreenControls" class="fullscreen-header">
             <Button
+              v-tooltip.bottom="'Exit fullscreen (Esc)'"
               icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
               severity="secondary"
               text
@@ -499,7 +523,7 @@ defineExpose({ focus });
         <!-- Navigation areas -->
         <div
           class="nav-area nav-left"
-          :class="{ disabled: !hasPrev, fullscreen: isFullscreen }"
+          :class="{ disabled: !hasPrev, fullscreen: isFullscreen, 'cursor-visible': showFullscreenCursor }"
           @click="(e) => handleNavClick(e, 'left')"
         >
           <i v-if="hasPrev && !isFullscreen" class="pi pi-chevron-left nav-icon"></i>
@@ -507,7 +531,7 @@ defineExpose({ focus });
 
         <div
           class="nav-area nav-right"
-          :class="{ disabled: !hasNext && !canLoadMore, loading: loadingMore, fullscreen: isFullscreen }"
+          :class="{ disabled: !hasNext && !canLoadMore, loading: loadingMore, fullscreen: isFullscreen, 'cursor-visible': showFullscreenCursor }"
           @click="(e) => handleNavClick(e, 'right')"
         >
           <template v-if="!isFullscreen">
@@ -563,6 +587,11 @@ defineExpose({ focus });
 
 .lightbox-overlay.fullscreen {
   background: black;
+  cursor: none;
+}
+
+.lightbox-overlay.fullscreen-cursor-visible {
+  cursor: auto;
 }
 
 /* Desktop only: shift content when panel is open */
@@ -639,6 +668,11 @@ defineExpose({ focus });
 
 .nav-area.fullscreen {
   background: transparent;
+  cursor: none;
+}
+
+.nav-area.fullscreen.cursor-visible {
+  cursor: pointer;
 }
 
 .nav-area.fullscreen:not(.disabled):active {
