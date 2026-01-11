@@ -278,7 +278,7 @@ function getLockLevelLabel(level: LockLevel): string {
 </script>
 
 <template>
-  <SettingsCard header="Security">
+  <SettingsCard header="Screen Lock">
     <!-- PIN Status -->
     <div class="settings-item">
       <div class="item-content">

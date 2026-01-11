@@ -2,6 +2,8 @@
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Button from "primevue/button";
+import Menu from "primevue/menu";
+import type { MenuItem } from "primevue/menuitem";
 import SearchBox from "../components/SearchBox.vue";
 import ImageGrid from "../components/ImageGrid.vue";
 import ImageLightbox from "../components/ImageLightbox.vue";
@@ -11,10 +13,59 @@ import StatsDashboard from "../components/StatsDashboard.vue";
 import { useInfiniteSearch, addTagsToImages } from "../composables/useApi";
 import { useSearchParams } from "../composables/useSearchParams";
 import { useImageSelection } from "../composables/useImageSelection";
+import { useAuth } from "../composables/useAuth";
 import type { SearchHit } from "../types/api";
 
 const route = useRoute();
 const router = useRouter();
+const { canEdit, canManageUsers, authEnabled, isAuthenticated, logout } = useAuth();
+
+// Menu (only used when auth is enabled)
+const menuRef = ref<InstanceType<typeof Menu> | null>(null);
+const showMenu = computed(() => authEnabled.value);
+const menuItems = computed<MenuItem[]>(() => {
+  const items: MenuItem[] = [
+    {
+      label: "Settings",
+      icon: "pi pi-cog",
+      command: () => router.replace("/settings"),
+    },
+  ];
+
+  // Admin menu (only for admin users when auth is enabled)
+  if (canManageUsers.value) {
+    items.push({
+      label: "Server Administration",
+      icon: "pi pi-server",
+      command: () => router.replace("/admin"),
+    });
+  }
+
+  // Logout (only when authenticated)
+  if (authEnabled.value && isAuthenticated.value) {
+    items.push({
+      separator: true,
+    });
+    items.push({
+      label: "Logout",
+      icon: "pi pi-sign-out",
+      command: async () => {
+        await logout();
+        router.replace("/login");
+      },
+    });
+  }
+
+  return items;
+});
+
+function toggleMenu(event: Event) {
+  menuRef.value?.toggle(event);
+}
+
+function goToSettings() {
+  router.replace("/settings");
+}
 
 // URL-synced search params
 const { query: searchQuery, mode: searchMode, isInitialized } = useSearchParams();
@@ -42,9 +93,9 @@ const {
   clearSelection,
 } = useImageSelection(images);
 
-// Tagging state
+// Tagging state (only available for editors)
 const taggingLoading = ref(false);
-const taggingPanelVisible = computed(() => isSelectionMode.value);
+const taggingPanelVisible = computed(() => canEdit.value && isSelectionMode.value);
 
 // Lightbox state
 const lightboxVisible = ref(false);
@@ -312,10 +363,6 @@ function handleEnterFullscreen() {
 function goHome() {
   searchQuery.value = "";
 }
-
-function goToSettings() {
-  router.replace("/settings");
-}
 </script>
 
 <template>
@@ -332,13 +379,35 @@ function goToSettings() {
         <div class="results-info">
           <span>{{ totalHits }} images found</span>
         </div>
-        <Button
-          icon="pi pi-cog"
-          variant="outlined"
-          severity="secondary"
-          @click="goToSettings"
-          aria-label="設定"
-        />
+        <div class="menu-wrapper">
+          <!-- Menu button (when auth is enabled) -->
+          <template v-if="showMenu">
+            <Button
+              icon="pi pi-bars"
+              variant="outlined"
+              severity="secondary"
+              @click="toggleMenu"
+              aria-haspopup="true"
+              aria-controls="header-menu"
+              aria-label="メニュー"
+            />
+            <Menu
+              ref="menuRef"
+              id="header-menu"
+              :model="menuItems"
+              :popup="true"
+            />
+          </template>
+          <!-- Settings button only (when auth is disabled) -->
+          <Button
+            v-else
+            icon="pi pi-cog"
+            variant="outlined"
+            severity="secondary"
+            @click="goToSettings"
+            aria-label="設定"
+          />
+        </div>
       </div>
     </header>
 
@@ -480,6 +549,18 @@ function goToSettings() {
   font-size: 0.875rem;
 }
 
+.menu-wrapper {
+  position: relative;
+}
+
+.menu-wrapper :deep(.p-menu) {
+  position: absolute !important;
+  top: 100% !important;
+  right: 0 !important;
+  left: auto !important;
+  margin-top: 0.25rem;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .header-content {
@@ -502,7 +583,7 @@ function goToSettings() {
     order: 2;
   }
 
-  .header-content > :deep(.p-button) {
+  .menu-wrapper {
     order: 3;
   }
 }
