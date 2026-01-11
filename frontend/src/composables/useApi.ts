@@ -18,7 +18,7 @@ async function fetchWithAuth(
   if (response.status === 401 && authEnabled.value) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      // Retry with refreshed cookies
+      // Retry with refreshed cookies (preserve the signal if present)
       response = await fetch(url, { ...options, credentials: "include" });
     }
   }
@@ -113,9 +113,22 @@ export function useInfiniteSearch() {
   const searchMode = ref<SearchMode>("and");
   const limit = 50;
 
+  // AbortController for cancelling in-flight requests
+  let searchAbortController: AbortController | null = null;
+  let loadMoreAbortController: AbortController | null = null;
+
   const hasMore = computed(() => images.value.length < totalHits.value);
 
   async function search(query: string, mode?: SearchMode) {
+    // Cancel any existing search request
+    if (searchAbortController) {
+      searchAbortController.abort();
+    }
+
+    // Create new AbortController for this search
+    searchAbortController = new AbortController();
+    const signal = searchAbortController.signal;
+
     // Update query and mode
     currentQuery.value = query;
     if (mode !== undefined) {
@@ -134,7 +147,9 @@ export function useInfiniteSearch() {
       params.set("offset", "0");
       params.set("mode", searchMode.value);
 
-      const response = await fetchWithAuth(`${API_BASE}/api/search?${params}`);
+      const response = await fetchWithAuth(`${API_BASE}/api/search?${params}`, {
+        signal,
+      });
       if (!response.ok) {
         throw new Error("Search failed");
       }
@@ -144,9 +159,16 @@ export function useInfiniteSearch() {
       images.value = data.hits;
       totalHits.value = data.totalHits;
     } catch (e) {
+      // Ignore abort errors (request was cancelled)
+      if (e instanceof Error && e.name === "AbortError") {
+        return;
+      }
       error.value = e instanceof Error ? e.message : "Unknown error";
     } finally {
-      loading.value = false;
+      // Only clear loading if this request wasn't aborted
+      if (!signal.aborted) {
+        loading.value = false;
+      }
     }
   }
 
@@ -154,6 +176,15 @@ export function useInfiniteSearch() {
     if (loadingMore.value || !hasMore.value) {
       return false;
     }
+
+    // Cancel any existing loadMore request
+    if (loadMoreAbortController) {
+      loadMoreAbortController.abort();
+    }
+
+    // Create new AbortController for this loadMore
+    loadMoreAbortController = new AbortController();
+    const signal = loadMoreAbortController.signal;
 
     loadingMore.value = true;
     error.value = null;
@@ -167,7 +198,9 @@ export function useInfiniteSearch() {
       params.set("offset", images.value.length.toString());
       params.set("mode", searchMode.value);
 
-      const response = await fetchWithAuth(`${API_BASE}/api/search?${params}`);
+      const response = await fetchWithAuth(`${API_BASE}/api/search?${params}`, {
+        signal,
+      });
       if (!response.ok) {
         throw new Error("Failed to load more");
       }
@@ -177,10 +210,17 @@ export function useInfiniteSearch() {
       totalHits.value = data.totalHits;
       return data.hits.length > 0;
     } catch (e) {
+      // Ignore abort errors (request was cancelled)
+      if (e instanceof Error && e.name === "AbortError") {
+        return false;
+      }
       error.value = e instanceof Error ? e.message : "Unknown error";
       return false;
     } finally {
-      loadingMore.value = false;
+      // Only clear loading if this request wasn't aborted
+      if (!signal.aborted) {
+        loadingMore.value = false;
+      }
     }
   }
 
