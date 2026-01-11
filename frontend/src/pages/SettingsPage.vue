@@ -17,7 +17,7 @@ function goBack() {
   <div class="settings-page">
     <div class="settings-container">
       <header class="settings-header">
-        <div class="flex align-items-center gap-3 settings-header-inner">
+        <div class="flex align-items-center gap-4 settings-header-inner">
           <Button
             icon="pi pi-arrow-left"
             text
@@ -29,7 +29,7 @@ function goBack() {
         </div>
       </header>
 
-      <div class="flex flex-column gap-4 settings-content">
+      <div class="flex flex-column gap-6 settings-content">
         <AccountSettings />
         <PinSettings />
         <FullscreenSettings />
@@ -81,6 +81,6 @@ function goBack() {
 }
 
 .settings-content {
-  padding-top: 4rem;
+  padding-top: 3rem;
 }
 </style>

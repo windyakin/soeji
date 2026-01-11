@@ -14,7 +14,7 @@ function goBack() {
   <div class="admin-page">
     <div class="admin-container">
       <header class="admin-header">
-        <div class="flex align-items-center gap-3 admin-header-inner">
+        <div class="flex align-items-center gap-4 admin-header-inner">
           <Button
             icon="pi pi-arrow-left"
             text
@@ -26,7 +26,7 @@ function goBack() {
         </div>
       </header>
 
-      <div class="flex flex-column gap-4 admin-content">
+      <div class="flex flex-column gap-6 admin-content">
         <UserManagement />
       </div>
     </div>
@@ -75,6 +75,6 @@ function goBack() {
 }
 
 .admin-content {
-  padding-top: 4rem;
+  padding-top: 3rem;
 }
 </style>

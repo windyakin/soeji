@@ -16,7 +16,7 @@ import type { UserListItem, UserRole, CreateUserRequest } from '../types/auth'
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 const toast = useToast()
-const { getAuthHeader, currentUser, canManageUsers } = useAuth()
+const { currentUser, canManageUsers } = useAuth()
 
 const users = ref<UserListItem[]>([])
 const loading = ref(false)
@@ -43,7 +43,7 @@ async function fetchUsers() {
   loading.value = true
   try {
     const response = await fetch(`${API_BASE}/api/users`, {
-      headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!response.ok) throw new Error('Failed to fetch users')
     users.value = await response.json()
@@ -84,8 +84,8 @@ async function createUser() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeader(),
       },
+      credentials: 'include',
       body: JSON.stringify(newUser.value),
     })
 
@@ -121,7 +121,7 @@ async function deleteUser() {
   try {
     const response = await fetch(`${API_BASE}/api/users/${userToDelete.value.id}`, {
       method: 'DELETE',
-      headers: getAuthHeader(),
+      credentials: 'include',
     })
 
     if (!response.ok) {

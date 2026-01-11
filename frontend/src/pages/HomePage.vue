@@ -20,8 +20,9 @@ const route = useRoute();
 const router = useRouter();
 const { canEdit, canManageUsers, authEnabled, isAuthenticated, logout } = useAuth();
 
-// Menu
+// Menu (only used when auth is enabled)
 const menuRef = ref<InstanceType<typeof Menu> | null>(null);
+const showMenu = computed(() => authEnabled.value);
 const menuItems = computed<MenuItem[]>(() => {
   const items: MenuItem[] = [
     {
@@ -60,6 +61,10 @@ const menuItems = computed<MenuItem[]>(() => {
 
 function toggleMenu(event: Event) {
   menuRef.value?.toggle(event);
+}
+
+function goToSettings() {
+  router.replace("/settings");
 }
 
 // URL-synced search params
@@ -375,20 +380,32 @@ function goHome() {
           <span>{{ totalHits }} images found</span>
         </div>
         <div class="menu-wrapper">
+          <!-- Menu button (when auth is enabled) -->
+          <template v-if="showMenu">
+            <Button
+              icon="pi pi-bars"
+              variant="outlined"
+              severity="secondary"
+              @click="toggleMenu"
+              aria-haspopup="true"
+              aria-controls="header-menu"
+              aria-label="メニュー"
+            />
+            <Menu
+              ref="menuRef"
+              id="header-menu"
+              :model="menuItems"
+              :popup="true"
+            />
+          </template>
+          <!-- Settings button only (when auth is disabled) -->
           <Button
-            icon="pi pi-bars"
+            v-else
+            icon="pi pi-cog"
             variant="outlined"
             severity="secondary"
-            @click="toggleMenu"
-            aria-haspopup="true"
-            aria-controls="header-menu"
-            aria-label="メニュー"
-          />
-          <Menu
-            ref="menuRef"
-            id="header-menu"
-            :model="menuItems"
-            :popup="true"
+            @click="goToSettings"
+            aria-label="設定"
           />
         </div>
       </div>

@@ -4,30 +4,22 @@ import { useAuth } from "./useAuth";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
-// Helper function to get auth headers and handle 401 responses
+// Helper function to handle API requests with cookie-based auth and 401 retry
 async function fetchWithAuth(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const { getAuthHeader, refreshAccessToken, authEnabled } = useAuth();
+  const { refreshAccessToken, authEnabled } = useAuth();
 
-  const headers = {
-    ...options.headers,
-    ...getAuthHeader(),
-  };
-
-  let response = await fetch(url, { ...options, headers });
+  // Always include credentials for cookie-based auth
+  let response = await fetch(url, { ...options, credentials: "include" });
 
   // If 401 and auth is enabled, try to refresh token and retry
   if (response.status === 401 && authEnabled.value) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      // Retry with new token
-      const newHeaders = {
-        ...options.headers,
-        ...getAuthHeader(),
-      };
-      response = await fetch(url, { ...options, headers: newHeaders });
+      // Retry with refreshed cookies
+      response = await fetch(url, { ...options, credentials: "include" });
     }
   }
 
