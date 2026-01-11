@@ -32,8 +32,8 @@ jobs:
           - name: backend
             dockerfile: backend/Dockerfile
             context: .
-          - name: service
-            dockerfile: service/Dockerfile
+          - name: watcher
+            dockerfile: watcher/Dockerfile
             context: .
           - name: converter
             dockerfile: converter/Dockerfile
