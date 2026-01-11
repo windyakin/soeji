@@ -10,7 +10,6 @@ import { tagsRouter } from "./routes/tags.js";
 import { statsRouter } from "./routes/stats.js";
 import { authRouter } from "./routes/auth.js";
 import { usersRouter } from "./routes/users.js";
-import { tagCache } from "./services/tagCache.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,10 +45,8 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// Initialize cache and start server
+// Start server
 async function start() {
-  await tagCache.initialize();
-
   app.listen(PORT, () => {
     console.log(`Backend server running on http://localhost:${PORT}`);
   });

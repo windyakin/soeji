@@ -44,7 +44,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Search/suggest tags by query (uses in-memory cache)
+// Search/suggest tags by query (uses Meilisearch with PostgreSQL fallback)
 router.get("/suggest", async (req, res) => {
   try {
     const { q = "", limit = "10" } = req.query;
@@ -55,9 +55,8 @@ router.get("/suggest", async (req, res) => {
       return;
     }
 
-    // Use cached tags for fast in-memory search
-    const { tagCache } = await import("../services/tagCache.js");
-    const tags = tagCache.suggest(query, parseInt(limit as string, 10));
+    const { searchTags } = await import("../services/tagSearchClient.js");
+    const tags = await searchTags(query, parseInt(limit as string, 10));
 
     res.json({
       tags: tags.map(({ id, name, category, imageCount }) => ({

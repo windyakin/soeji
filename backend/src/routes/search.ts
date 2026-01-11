@@ -1,19 +1,12 @@
 import { Router } from "express";
-import { MeiliSearch } from "meilisearch";
 import { authenticate } from "../middleware/auth.js";
 import { allRoles } from "../middleware/roleGuard.js";
+import { meilisearchClient, IMAGES_INDEX_NAME } from "../services/meilisearch.js";
 
 const router = Router();
 
 // All search endpoints require authentication (any role)
 router.use(authenticate, allRoles);
-
-const client = new MeiliSearch({
-  host: process.env.MEILISEARCH_HOST || "http://localhost:7700",
-  apiKey: process.env.MEILISEARCH_API_KEY || "masterKey",
-});
-
-const INDEX_NAME = "images";
 
 // S3 URL configuration
 const S3_PUBLIC_ENDPOINT = process.env.S3_PUBLIC_ENDPOINT || "http://localhost:9000";
@@ -191,7 +184,7 @@ router.get("/", async (req, res) => {
       mode = "or", // "or" | "and" - default search mode
     } = req.query;
 
-    const index = client.index(INDEX_NAME);
+    const index = meilisearchClient.index(IMAGES_INDEX_NAME);
 
     const filters: string[] = [];
 

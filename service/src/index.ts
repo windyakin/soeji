@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { initializeMeilisearch } from "./services/meilisearchClient.js";
+import { initializeMeilisearch, initializeTagsIndex } from "./services/meilisearchClient.js";
 import { startWatcher } from "./services/watcher.js";
 import { prisma } from "./services/database.js";
 import { processDirectory } from "./services/imageProcessor.js";
@@ -13,9 +13,10 @@ async function main() {
   console.log(`Delete after process: ${DELETE_AFTER_PROCESS}`);
 
   try {
-    // Initialize Meilisearch index
+    // Initialize Meilisearch indexes
     console.log("Initializing Meilisearch...");
     await initializeMeilisearch();
+    await initializeTagsIndex();
 
     // Test database connection
     console.log("Testing database connection...");

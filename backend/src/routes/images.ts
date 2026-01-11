@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
-import { MeiliSearch } from "meilisearch";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { tagCache } from "../services/tagCache.js";
+import { evaluateAndUpdateTags } from "../services/tagIndexer.js";
+import { meilisearchClient, IMAGES_INDEX_NAME } from "../services/meilisearch.js";
 import { authenticate } from "../middleware/auth.js";
 import { allRoles, editorsOnly } from "../middleware/roleGuard.js";
 
@@ -11,12 +11,6 @@ const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
-
-// Meilisearch client
-const meilisearchClient = new MeiliSearch({
-  host: process.env.MEILISEARCH_HOST || "http://localhost:7700",
-  apiKey: process.env.MEILISEARCH_API_KEY || "masterKey",
-});
 
 // S3 client
 const s3Client = new S3Client({
@@ -106,7 +100,7 @@ router.get("/:id", allRoles, async (req, res) => {
 
 // Helper function to update Meilisearch index for images
 async function updateMeilisearchIndex(imageIds: string[]): Promise<void> {
-  const index = meilisearchClient.index("images");
+  const index = meilisearchClient.index(IMAGES_INDEX_NAME);
 
   for (const imageId of imageIds) {
     const image = await prisma.image.findUnique({
@@ -169,6 +163,7 @@ router.post("/tags", editorsOnly, async (req, res) => {
 
     const results = await prisma.$transaction(async (tx) => {
       const updatedImageIds: string[] = [];
+      const affectedTagIds: string[] = [];
 
       for (const tagName of tags) {
         // Find or create tag
@@ -178,6 +173,10 @@ router.post("/tags", editorsOnly, async (req, res) => {
           tag = await tx.tag.create({
             data: { name: tagName, category: "user" },
           });
+        }
+
+        if (!affectedTagIds.includes(tag.id)) {
+          affectedTagIds.push(tag.id);
         }
 
         // Add ImageTag for each image (upsert to avoid duplicates)
@@ -204,18 +203,18 @@ router.post("/tags", editorsOnly, async (req, res) => {
         }
       }
 
-      return updatedImageIds;
+      return { updatedImageIds, affectedTagIds };
     });
 
     // Update Meilisearch index for affected images
-    await updateMeilisearchIndex(results);
+    await updateMeilisearchIndex(results.updatedImageIds);
 
-    // Trigger tag cache refresh
-    await tagCache.refresh();
+    // Update tag indexes for affected tags
+    await evaluateAndUpdateTags(results.affectedTagIds);
 
     res.json({
       success: true,
-      updatedCount: results.length,
+      updatedCount: results.updatedImageIds.length,
       tags,
     });
   } catch (error) {
@@ -252,8 +251,8 @@ router.delete("/:imageId/tags/:tagId", editorsOnly, async (req, res) => {
     // Update Meilisearch index
     await updateMeilisearchIndex([imageId]);
 
-    // Trigger tag cache refresh
-    await tagCache.refresh();
+    // Update tag index for the affected tag
+    await evaluateAndUpdateTags([tagId]);
 
     res.json({ success: true });
   } catch (error) {
@@ -270,8 +269,14 @@ router.delete("/:id", editorsOnly, async (req, res) => {
     // Get image info first (before deleting from DB)
     const image = await prisma.image.findUnique({
       where: { id },
-      select: { s3Key: true },
+      select: {
+        s3Key: true,
+        tags: { select: { tagId: true } },
+      },
     });
+
+    // Collect tag IDs for later update
+    const affectedTagIds = image?.tags.map((t) => t.tagId) ?? [];
 
     // Delete from S3 (ignore errors - file may not exist)
     if (image?.s3Key) {
@@ -289,7 +294,7 @@ router.delete("/:id", editorsOnly, async (req, res) => {
 
     // Delete from Meilisearch (ignore errors - document may not exist)
     try {
-      const index = meilisearchClient.index("images");
+      const index = meilisearchClient.index(IMAGES_INDEX_NAME);
       await index.deleteDocument(id);
     } catch (meilisearchError) {
       console.warn(`Meilisearch delete failed for ${id}:`, meilisearchError);
@@ -302,8 +307,10 @@ router.delete("/:id", editorsOnly, async (req, res) => {
       });
     }
 
-    // Trigger tag cache refresh
-    await tagCache.refresh();
+    // Update tag indexes for affected tags
+    if (affectedTagIds.length > 0) {
+      await evaluateAndUpdateTags(affectedTagIds);
+    }
 
     res.json({ success: true });
   } catch (error) {

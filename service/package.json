@@ -11,7 +11,8 @@
     "test:run": "vitest run",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "reindex-tags": "tsx src/scripts/reindexTags.ts"
   },
   "type": "module",
   "devDependencies": {
