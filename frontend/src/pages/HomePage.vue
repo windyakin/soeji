@@ -371,7 +371,7 @@ function goHome() {
     <header class="app-header">
       <div class="header-content">
         <a href="/" class="app-title-link" @click.prevent="goHome">
-          <h1 class="app-title">Soeji</h1>
+          <h1 class="app-title">NAIm</h1>
         </a>
         <div class="search-wrapper">
           <SearchBox v-model="searchQuery" v-model:searchMode="searchMode" :loading="loading" />

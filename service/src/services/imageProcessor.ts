@@ -4,6 +4,7 @@ import { extractPngComment, parsePromptData, getPngDimensions } from "./pngReade
 import { uploadToS3, calculateFileHash } from "./s3Client.js";
 import { createImageWithMetadata, findImageByHash } from "./database.js";
 import { indexImage, type ImageDocument } from "./meilisearchClient.js";
+import { evaluateAndUpdateTags } from "./tagEvaluator.js";
 
 export interface ProcessResult {
   success: boolean;
@@ -86,7 +87,7 @@ export async function processImage(
     console.log(`Uploaded to S3: ${s3Key}`);
 
     // Save to database
-    const image = await createImageWithMetadata({
+    const { image, tagIds } = await createImageWithMetadata({
       filename,
       s3Key,
       fileHash: hash,
@@ -129,6 +130,12 @@ export async function processImage(
 
     await indexImage(searchDoc);
     console.log(`Indexed in Meilisearch: ${image.id}`);
+
+    // Update tag indexes for affected tags
+    if (tagIds.length > 0) {
+      await evaluateAndUpdateTags(tagIds);
+      console.log(`Updated ${tagIds.length} tags in Meilisearch`);
+    }
 
     // Delete source file after successful processing
     if (deleteAfterProcess) {

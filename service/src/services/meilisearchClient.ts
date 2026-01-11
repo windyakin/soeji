@@ -6,12 +6,21 @@ const client = new MeiliSearch({
 });
 
 const INDEX_NAME = "images";
+const TAGS_INDEX_NAME = "tags";
 
 export interface WeightedTagDocument {
   name: string;
   weight: number;
   isNegative: boolean;
   source: string;
+}
+
+export interface TagDocument {
+  id: string;
+  name: string;
+  nameTokens: string; // name split by _ for better search (e.g., "red_book" -> "red book")
+  category: string | null;
+  imageCount: number;
 }
 
 export interface ImageDocument {
@@ -68,7 +77,43 @@ export async function initializeMeilisearch(): Promise<void> {
   // Configure sortable attributes
   await index.updateSortableAttributes(["createdAt", "seed"]);
 
-  console.log("Meilisearch index initialized");
+  console.log("Meilisearch images index initialized");
+}
+
+export async function initializeTagsIndex(): Promise<void> {
+  try {
+    await client.getIndex(TAGS_INDEX_NAME);
+  } catch {
+    await client.createIndex(TAGS_INDEX_NAME, { primaryKey: "id" });
+  }
+
+  const index = client.index(TAGS_INDEX_NAME);
+
+  // Configure searchable attributes (nameTokens for word-based search)
+  await index.updateSearchableAttributes(["name", "nameTokens"]);
+
+  // Configure sortable attributes for ranking by popularity
+  await index.updateSortableAttributes(["imageCount"]);
+
+  // Configure filterable attributes
+  await index.updateFilterableAttributes(["category"]);
+
+  // Configure typo tolerance
+  await index.updateTypoTolerance({
+    enabled: true,
+    minWordSizeForTypos: {
+      oneTypo: 2,
+      twoTypos: 5,
+    },
+  });
+
+  console.log("Meilisearch tags index initialized");
+}
+
+// Helper to tokenize tag name for better search
+export function tokenizeTagName(name: string): string {
+  // Split by _ and other common separators, join with space
+  return name.replace(/[_\-:]/g, " ");
 }
 
 export async function indexImage(document: ImageDocument): Promise<void> {
@@ -120,6 +165,45 @@ export async function searchByTags(tags: string[], limit = 20): Promise<ImageDoc
     limit,
   });
   return result.hits;
+}
+
+// Tag index operations
+export async function indexTag(tag: TagDocument): Promise<void> {
+  const index = client.index(TAGS_INDEX_NAME);
+  await index.addDocuments([tag]);
+}
+
+export async function indexTags(tags: TagDocument[]): Promise<void> {
+  if (tags.length === 0) return;
+  const index = client.index(TAGS_INDEX_NAME);
+  await index.addDocuments(tags);
+}
+
+export async function removeTagFromIndex(tagId: string): Promise<void> {
+  const index = client.index(TAGS_INDEX_NAME);
+  await index.deleteDocument(tagId);
+}
+
+export async function searchTags(
+  query: string,
+  limit: number = 10
+): Promise<{ hits: TagDocument[]; totalHits: number }> {
+  const index = client.index(TAGS_INDEX_NAME);
+
+  const result = await index.search<TagDocument>(query, {
+    limit,
+    sort: ["imageCount:desc"],
+  });
+
+  return {
+    hits: result.hits,
+    totalHits: result.estimatedTotalHits || 0,
+  };
+}
+
+export async function clearTagsIndex(): Promise<void> {
+  const index = client.index(TAGS_INDEX_NAME);
+  await index.deleteAllDocuments();
 }
 
 export { client as meilisearchClient };

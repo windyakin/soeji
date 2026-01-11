@@ -12,7 +12,21 @@ export interface CreateImageInput {
   promptData: ParsedPromptData;
 }
 
-export async function createImageWithMetadata(input: CreateImageInput) {
+export interface CreateImageResult {
+  image: {
+    id: string;
+    filename: string;
+    s3Key: string;
+    fileHash: string;
+    width: number | null;
+    height: number | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  tagIds: string[];
+}
+
+export async function createImageWithMetadata(input: CreateImageInput): Promise<CreateImageResult> {
   const { filename, s3Key, fileHash, width, height, promptData } = input;
 
   return prisma.$transaction(async (tx) => {
@@ -44,6 +58,7 @@ export async function createImageWithMetadata(input: CreateImageInput) {
     });
 
     // Create tags and link them with weight information
+    const tagIds: string[] = [];
     for (const weightedTag of promptData.tags) {
       let tag = await tx.tag.findUnique({ where: { name: weightedTag.name } });
 
@@ -69,9 +84,11 @@ export async function createImageWithMetadata(input: CreateImageInput) {
           source: weightedTag.source,
         },
       });
+
+      tagIds.push(tag.id);
     }
 
-    return image;
+    return { image, tagIds };
   });
 }
 

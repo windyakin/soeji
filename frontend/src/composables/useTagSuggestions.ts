@@ -1,5 +1,5 @@
 import { ref, computed, type ComputedRef, type Ref } from "vue";
-import type { TagListItem, TagsResponse } from "../types/api";
+import type { TagListItem } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -42,6 +42,58 @@ export interface UseTagSuggestionsReturn {
   clearSuggestions: () => void;
 }
 
+// Singleton SSE connection manager
+let eventSource: EventSource | null = null;
+let sessionId: string | null = null;
+let connectionPromise: Promise<void> | null = null;
+const sseCallbacks = new Map<string, (tags: TagListItem[]) => void>();
+
+function ensureConnected(): Promise<void> {
+  if (sessionId && eventSource?.readyState === EventSource.OPEN) {
+    return Promise.resolve();
+  }
+
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
+  connectionPromise = new Promise((resolve, reject) => {
+    eventSource = new EventSource(`${API_BASE}/api/tags/suggest/stream`, {
+      withCredentials: true,
+    });
+
+    eventSource.addEventListener("connected", (e) => {
+      const data = JSON.parse((e as MessageEvent).data);
+      sessionId = data.sessionId;
+      connectionPromise = null;
+      resolve();
+    });
+
+    eventSource.addEventListener("results", (e) => {
+      const data = JSON.parse((e as MessageEvent).data);
+      const callback = sseCallbacks.get(data.query);
+      if (callback) {
+        callback(data.tags);
+        sseCallbacks.delete(data.query);
+      }
+    });
+
+    eventSource.onerror = () => {
+      sessionId = null;
+      connectionPromise = null;
+      // Auto-reconnect handled by browser, but clear state
+      setTimeout(() => {
+        if (eventSource?.readyState === EventSource.CLOSED) {
+          eventSource = null;
+        }
+      }, 1000);
+      reject(new Error("SSE connection failed"));
+    };
+  });
+
+  return connectionPromise;
+}
+
 export function useTagSuggestions(): UseTagSuggestionsReturn {
   const rawSuggestions = ref<TagListItem[]>([]);
   const loading = ref(false);
@@ -57,14 +109,9 @@ export function useTagSuggestions(): UseTagSuggestionsReturn {
     }));
   });
 
-  let abortController: AbortController | null = null;
+  let currentQuery = "";
 
   async function fetchSuggestions(query: string, cursorPosition?: number) {
-    // Cancel previous request
-    if (abortController) {
-      abortController.abort();
-    }
-
     if (!query.trim()) {
       rawSuggestions.value = [];
       currentPrefix.value = "";
@@ -88,32 +135,37 @@ export function useTagSuggestions(): UseTagSuggestionsReturn {
 
     loading.value = true;
     error.value = null;
-    abortController = new AbortController();
+    currentQuery = word;
 
     try {
-      const params = new URLSearchParams();
-      params.set("q", word);
-      params.set("limit", "10");
+      await ensureConnected();
 
-      const response = await fetch(`${API_BASE}/api/tags/suggest?${params}`, {
-        signal: abortController.signal,
+      // Set up callback for this query
+      sseCallbacks.set(word, (tags) => {
+        // Only update if this is still the current query
+        if (currentQuery === word) {
+          rawSuggestions.value = tags;
+          loading.value = false;
+        }
+      });
+
+      // Send query via POST
+      const response = await fetch(`${API_BASE}/api/tags/suggest/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ sessionId, query: word, limit: 10 }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to fetch suggestions");
+        throw new Error("Query failed");
       }
-
-      const data: TagsResponse = await response.json();
-      rawSuggestions.value = data.tags;
     } catch (e) {
-      if (e instanceof Error && e.name === "AbortError") {
-        // Request was cancelled, ignore
-        return;
-      }
       error.value = e instanceof Error ? e.message : "Unknown error";
       rawSuggestions.value = [];
-    } finally {
       loading.value = false;
+      // Clear callback on error
+      sseCallbacks.delete(word);
     }
   }
 
