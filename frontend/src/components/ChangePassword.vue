@@ -135,8 +135,8 @@ function handleCancel() {
     :breakpoints="{ '480px': '90vw' }"
     :pt="dialogPt"
   >
-    <form class="password-form" @submit.prevent="handleSubmit">
-      <div class="form-field">
+    <form @submit.prevent="handleSubmit">
+      <div class="field">
         <label for="current-password">Current Password</label>
         <Password
           v-model="currentPassword"
@@ -145,12 +145,11 @@ function handleCancel() {
           toggleMask
           autocomplete="current-password"
           :disabled="isLoading"
-          inputClass="w-full"
-          class="w-full"
+          fluid
         />
       </div>
 
-      <div class="form-field">
+      <div class="field">
         <label for="new-password">New Password</label>
         <Password
           v-model="newPassword"
@@ -159,13 +158,12 @@ function handleCancel() {
           toggleMask
           autocomplete="new-password"
           :disabled="isLoading"
-          inputClass="w-full"
-          class="w-full"
+          fluid
         />
-        <small class="hint">Must be at least 8 characters</small>
+        <small>Must be at least 8 characters</small>
       </div>
 
-      <div class="form-field">
+      <div class="field">
         <label for="confirm-password">Confirm New Password</label>
         <Password
           v-model="confirmPassword"
@@ -174,8 +172,7 @@ function handleCancel() {
           toggleMask
           autocomplete="new-password"
           :disabled="isLoading"
-          inputClass="w-full"
-          class="w-full"
+          fluid
         />
       </div>
 
@@ -185,7 +182,7 @@ function handleCancel() {
     </form>
 
     <template #footer>
-      <div class="dialog-footer">
+      <div class="flex justify-content-end gap-2">
         <Button
           type="button"
           label="Cancel"
@@ -206,43 +203,4 @@ function handleCancel() {
 </template>
 
 <style scoped>
-.password-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-field label {
-  font-weight: 500;
-  color: var(--p-text-color);
-}
-
-.hint {
-  color: var(--p-text-muted-color);
-  font-size: 0.75rem;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
-}
 </style>

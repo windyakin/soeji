@@ -117,8 +117,8 @@ function handleBack() {
         </template>
         <template #content>
           <!-- Step 1: Setup Key Verification -->
-          <form v-if="currentStep === 'setupKey'" class="setup-form" @submit.prevent="handleVerifySetupKey">
-            <div class="form-field">
+          <form v-if="currentStep === 'setupKey'" @submit.prevent="handleVerifySetupKey">
+            <div class="field">
               <label for="setupKey">Setup Key</label>
               <Password
                 v-model="setupKey"
@@ -126,10 +126,9 @@ function handleBack() {
                 :feedback="false"
                 toggleMask
                 :disabled="isLoading"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
-              <small class="field-hint">Enter the setup key provided by your administrator</small>
+              <small>Enter the setup key provided by your administrator</small>
             </div>
 
             <div v-if="errorMessage" class="error-message">
@@ -140,24 +139,25 @@ function handleBack() {
               type="submit"
               label="Continue"
               :loading="isLoading"
-              class="w-full"
+              fluid
+              class="mt-4"
             />
           </form>
 
           <!-- Step 2: Create Admin Account -->
-          <form v-else-if="currentStep === 'createAdmin'" class="setup-form" @submit.prevent="handleCreateAdmin">
-            <div class="form-field">
+          <form v-else-if="currentStep === 'createAdmin'" @submit.prevent="handleCreateAdmin">
+            <div class="field">
               <label for="username">Username</label>
               <InputText
                 id="username"
                 v-model="username"
                 autocomplete="username"
                 :disabled="isLoading"
-                class="w-full"
+                fluid
               />
             </div>
 
-            <div class="form-field">
+            <div class="field">
               <label for="password">Password</label>
               <Password
                 v-model="password"
@@ -165,13 +165,12 @@ function handleBack() {
                 toggleMask
                 autocomplete="new-password"
                 :disabled="isLoading"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
-              <small class="field-hint">At least 8 characters</small>
+              <small>At least 8 characters</small>
             </div>
 
-            <div class="form-field">
+            <div class="field">
               <label for="confirmPassword">Confirm Password</label>
               <Password
                 v-model="confirmPassword"
@@ -180,8 +179,7 @@ function handleBack() {
                 toggleMask
                 autocomplete="new-password"
                 :disabled="isLoading"
-                inputClass="w-full"
-                class="w-full"
+                fluid
               />
             </div>
 
@@ -189,7 +187,7 @@ function handleBack() {
               {{ errorMessage }}
             </div>
 
-            <div class="button-group">
+            <div class="flex gap-2 mt-4">
               <Button
                 type="button"
                 label="Back"
@@ -201,6 +199,7 @@ function handleBack() {
                 type="submit"
                 label="Create Admin Account"
                 :loading="isLoading"
+                class="flex-1"
               />
             </div>
           </form>
@@ -250,60 +249,13 @@ function handleBack() {
   font-size: 0.875rem;
 }
 
-.setup-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-field label {
-  font-weight: 500;
-  color: var(--p-text-color);
-}
-
-.field-hint {
-  color: var(--p-text-muted-color);
-  font-size: 0.75rem;
-}
-
 .error-message {
   color: var(--p-red-500);
   font-size: 0.875rem;
   text-align: center;
 }
 
-.button-group {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.button-group > :first-child {
-  flex: 0 0 auto;
-}
-
-.button-group > :last-child {
-  flex: 1 1 auto;
-}
-
 .version-container {
   margin-top: 1.5rem;
-}
-
-.w-full {
-  width: 100%;
-}
-
-:deep(.p-password) {
-  width: 100%;
-}
-
-:deep(.p-password-input) {
-  width: 100%;
 }
 </style>
