@@ -65,7 +65,7 @@ services:
       - S3_ACCESS_KEY
       - S3_SECRET_KEY
       - S3_REGION
-      - WEBP_DEFAULT_QUALITY
+      - AVIF_QUALITY
       - MAX_DIMENSION
       - RUST_LOG
     depends_on:
