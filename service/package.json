@@ -12,7 +12,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "reindex-tags": "tsx src/scripts/reindexTags.ts"
+    "reindex-tags": "node dist/scripts/reindexTags.js",
+    "reindex-tags:dev": "tsx src/scripts/reindexTags.ts"
   },
   "type": "module",
   "devDependencies": {
