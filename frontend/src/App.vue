@@ -14,7 +14,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <Toast position="bottom-center" :breakpoints="{ '480px': { width: '90vw' } }" />
+  <Toast
+    position="bottom-center"
+    :breakpoints="{ '480px': { width: '90vw' } }"
+    :pt="{ messageIcon: { style: 'margin-top: 0.2rem' } }"
+  />
   <router-view v-if="!needsUnlock" />
   <PinModal :visible="needsUnlock" />
   <PwaUpdatePrompt />
