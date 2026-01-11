@@ -117,7 +117,7 @@ function handleBack() {
         </template>
         <template #content>
           <!-- Step 1: Setup Key Verification -->
-          <form v-if="currentStep === 'setupKey'" class="flex flex-column gap-4" @submit.prevent="handleVerifySetupKey">
+          <form v-if="currentStep === 'setupKey'" @submit.prevent="handleVerifySetupKey">
             <div class="field">
               <label for="setupKey">Setup Key</label>
               <Password
@@ -140,11 +140,12 @@ function handleBack() {
               label="Continue"
               :loading="isLoading"
               fluid
+              class="mt-4"
             />
           </form>
 
           <!-- Step 2: Create Admin Account -->
-          <form v-else-if="currentStep === 'createAdmin'" class="flex flex-column gap-4" @submit.prevent="handleCreateAdmin">
+          <form v-else-if="currentStep === 'createAdmin'" @submit.prevent="handleCreateAdmin">
             <div class="field">
               <label for="username">Username</label>
               <InputText
@@ -186,7 +187,7 @@ function handleBack() {
               {{ errorMessage }}
             </div>
 
-            <div class="flex gap-2">
+            <div class="flex gap-2 mt-4">
               <Button
                 type="button"
                 label="Back"
