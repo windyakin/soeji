@@ -48,6 +48,12 @@ const statusIcon = computed(() => {
 });
 
 const statusClass = computed(() => `status-${props.item.status}`);
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 </script>
 
 <template>
@@ -59,7 +65,10 @@ const statusClass = computed(() => `status-${props.item.status}`);
       </div>
     </div>
     <div class="flex-grow-1 min-w-0">
-      <div class="item-name text-overflow-ellipsis white-space-nowrap overflow-hidden font-medium text-sm">{{ item.file.name }}</div>
+      <div class="item-header">
+        <div class="item-name text-overflow-ellipsis white-space-nowrap overflow-hidden font-medium text-sm">{{ item.file.name }}</div>
+        <div class="item-size text-xs">{{ formatFileSize(item.file.size) }}</div>
+      </div>
       <div v-if="item.status === 'uploading'" class="mt-1">
         <ProgressBar :value="item.progress" :showValue="false" style="height: 4px" />
       </div>
@@ -145,12 +154,35 @@ const statusClass = computed(() => `status-${props.item.status}`);
   object-fit: cover;
 }
 
+.item-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+@media (min-width: 640px) {
+  .item-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+  }
+}
+
 .item-name {
   color: var(--p-surface-700);
 }
 
 .dark-mode .item-name {
   color: var(--p-surface-200);
+}
+
+.item-size {
+  color: var(--p-surface-500);
+  flex-shrink: 0;
+}
+
+.dark-mode .item-size {
+  color: var(--p-surface-400);
 }
 
 .item-error {

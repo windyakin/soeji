@@ -1,5 +1,12 @@
 import type { UserRole } from "@prisma/client";
 
+// User-selectable roles (excludes internal roles like 'upload')
+export type SelectableUserRole = "admin" | "user" | "guest";
+
+// Extended role type including internal service roles
+// 'upload' is used by WATCHER_API_KEY for upload-only access
+export type ExternalRole = UserRole | "upload";
+
 export interface TokenPayload {
   userId: string;
   username: string;
@@ -9,7 +16,7 @@ export interface TokenPayload {
 export interface AuthUser {
   id: string;
   username: string;
-  role: UserRole;
+  role: ExternalRole;
   mustChangePassword: boolean;
 }
 
@@ -48,13 +55,13 @@ export interface AuthConfigResponse {
 export interface CreateUserRequest {
   username: string;
   password: string;
-  role: UserRole;
+  role: SelectableUserRole;
 }
 
 export interface UpdateUserRequest {
   username?: string;
   password?: string;
-  role?: UserRole;
+  role?: SelectableUserRole;
 }
 
 // Extend Express Request to include authenticated user
