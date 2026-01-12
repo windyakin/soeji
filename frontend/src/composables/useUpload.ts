@@ -44,6 +44,7 @@ import { useAuth } from "./useAuth";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const MAX_CONCURRENT_UPLOADS = 3;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Shared state (singleton pattern)
 const queue = ref<UploadItem[]>([]);
@@ -113,6 +114,20 @@ export function useUpload() {
       // Only accept PNG files
       if (file.type !== "image/png") {
         console.warn(`Skipping non-PNG file: ${file.name}`);
+        continue;
+      }
+
+      // Check file size (10MB limit)
+      if (file.size > MAX_FILE_SIZE) {
+        console.warn(`Skipping file exceeding 10MB limit: ${file.name}`);
+        const item: UploadItem = {
+          id: crypto.randomUUID(),
+          file,
+          status: "error",
+          progress: 0,
+          error: "File size exceeds 10MB limit",
+        };
+        queue.value.push(item);
         continue;
       }
 
@@ -233,16 +248,19 @@ export function useUpload() {
               sessionCompletedProgress.value += 100;
             }
           } else {
-            try {
-              const errorResult = JSON.parse(xhr.responseText);
-              item.status = "error";
-              item.error = errorResult.error || "Upload failed";
-              sessionCompletedProgress.value += 100;
-            } catch {
-              item.status = "error";
-              item.error = `HTTP ${xhr.status}`;
-              sessionCompletedProgress.value += 100;
+            item.status = "error";
+            // Handle nginx 413 (Request Entity Too Large)
+            if (xhr.status === 413) {
+              item.error = "File size exceeds 10MB limit";
+            } else {
+              try {
+                const errorResult = JSON.parse(xhr.responseText);
+                item.error = errorResult.error || "Upload failed";
+              } catch {
+                item.error = `HTTP ${xhr.status}`;
+              }
             }
+            sessionCompletedProgress.value += 100;
           }
           resolve();
         });
@@ -291,7 +309,7 @@ export function useUpload() {
 
   function clearCompleted() {
     queue.value = queue.value.filter(
-      (item) => item.status !== "success" && item.status !== "duplicate"
+      (item) => item.status !== "success" && item.status !== "duplicate" && item.status !== "error"
     );
   }
 

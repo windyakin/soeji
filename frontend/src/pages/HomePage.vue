@@ -373,10 +373,10 @@ function goHome() {
   searchQuery.value = "";
 }
 
-// Drag and drop handlers for page-level upload
+// Drag and drop handlers for page-level upload (admin only)
 function handlePageDragEnter(event: DragEvent) {
   event.preventDefault();
-  if (!canEdit.value) return;
+  if (!canManageUsers.value) return;
 
   dragCounter++;
   if (event.dataTransfer?.types.includes("Files")) {
@@ -401,7 +401,7 @@ function handlePageDrop(event: DragEvent) {
   dragCounter = 0;
   isDragOverPage.value = false;
 
-  if (!canEdit.value) return;
+  if (!canManageUsers.value) return;
 
   if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
     addFiles(event.dataTransfer.files);
@@ -424,7 +424,7 @@ function handleUploadComplete() {
     @drop="handlePageDrop"
   >
     <!-- Drag overlay (admin only) -->
-    <div v-if="isDragOverPage && canEdit" class="drag-overlay">
+    <div v-if="isDragOverPage && canManageUsers" class="drag-overlay">
       <div class="drag-overlay-content">
         <i class="pi pi-cloud-upload drag-icon"></i>
         <p>Drop images to upload</p>
@@ -444,9 +444,9 @@ function handleUploadComplete() {
           <span>{{ totalHits }} images found</span>
         </div>
         <div class="menu-wrapper flex items-center gap-2">
-          <!-- Upload button (unified: shows upload icon or progress indicator) -->
+          <!-- Upload button (admin only: shows upload icon or progress indicator) -->
           <UploadButton
-            v-if="canEdit"
+            v-if="canManageUsers"
             ref="uploadButtonRef"
             @uploaded="handleUploadComplete"
           />

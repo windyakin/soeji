@@ -21,10 +21,10 @@ const {
 const sortedQueue = computed<UploadItem[]>(() => {
   const statusOrder: Record<string, number> = {
     uploading: 0,
-    pending: 1,
     duplicate: 2,
     error: 2,
-    success: 2,
+    pending: 3,
+    success: 4,
   };
   return [...queue.value].sort((a, b) => {
     const orderDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
