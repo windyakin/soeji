@@ -60,6 +60,7 @@ import {
 } from "../services/meilisearch.js";
 import { buildImageDocument } from "../services/imageProcessor.js";
 import type { ParsedMetadata } from "../services/readers/types.js";
+import type { TagSource, CharCaption } from "../types/prompt.js";
 
 type OnlyTarget = "lossless-webp" | "metadata-json" | "images" | "tags";
 type MasterMode = "db" | "s3";
@@ -331,10 +332,10 @@ async function reindexImages(options: Options): Promise<void> {
               steps: image.metadata.steps,
               scale: image.metadata.scale,
               sampler: image.metadata.sampler,
-              rawComment: image.metadata.rawComment,
+              rawComment: image.metadata.rawComment ?? "",
               v4BaseCaption: image.metadata.v4BaseCaption,
               v4CharCaptions: image.metadata.v4CharCaptions as
-                | string[]
+                | CharCaption[]
                 | null,
               negativePrompt: image.metadata.negativePrompt,
               width: image.width,
@@ -343,7 +344,7 @@ async function reindexImages(options: Options): Promise<void> {
                 name: t.tag.name,
                 weight: t.weight,
                 isNegative: t.isNegative,
-                source: t.source ?? "metadata",
+                source: (t.source ?? "prompt") as TagSource,
               })),
             }
           : null;
