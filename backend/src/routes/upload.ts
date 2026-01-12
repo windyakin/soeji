@@ -6,10 +6,12 @@ import { processUploadedImage } from "../services/imageProcessor.js";
 const router = Router();
 
 // Configure multer for memory storage
+// Note: Frontend validates file size before upload, but this serves as a backend safeguard
+// for direct API access (e.g., watcher service)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit (also enforced by nginx client_max_body_size)
   },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype === "image/png") {
@@ -102,7 +104,7 @@ router.post("/", upload.single("file"), async (req, res) => {
       if (error.code === "LIMIT_FILE_SIZE") {
         return res.status(400).json({
           success: false,
-          error: "File size exceeds 50MB limit",
+          error: "File size exceeds 10MB limit",
           code: "INVALID_FILE",
         });
       }
