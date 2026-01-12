@@ -62,20 +62,19 @@ export async function createImageWithMetadata(input: CreateImageInput): Promise<
     // Create tags and link them with weight information
     const tagIds: string[] = [];
     for (const weightedTag of promptData.tags) {
-      let tag = await tx.tag.findUnique({ where: { name: weightedTag.name } });
+      // Determine category from tag format (e.g., "artist:name" -> category: "artist")
+      const colonIndex = weightedTag.name.indexOf(":");
+      const category = colonIndex > 0 ? weightedTag.name.slice(0, colonIndex) : null;
 
-      if (!tag) {
-        // Determine category from tag format (e.g., "artist:name" -> category: "artist")
-        const colonIndex = weightedTag.name.indexOf(":");
-        const category = colonIndex > 0 ? weightedTag.name.slice(0, colonIndex) : null;
-
-        tag = await tx.tag.create({
-          data: {
-            name: weightedTag.name,
-            category,
-          },
-        });
-      }
+      // Use upsert to handle concurrent uploads with same tags
+      const tag = await tx.tag.upsert({
+        where: { name: weightedTag.name },
+        update: {}, // No update needed if tag already exists
+        create: {
+          name: weightedTag.name,
+          category,
+        },
+      });
 
       await tx.imageTag.create({
         data: {
