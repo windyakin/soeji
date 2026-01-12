@@ -38,6 +38,7 @@ export interface ImageDocument {
   seed: number | null;
   width: number | null;
   height: number | null;
+  hasLosslessWebp: boolean;
   createdAt: number;
 }
 

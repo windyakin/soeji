@@ -10,6 +10,7 @@ export interface CreateImageInput {
   width: number | null;
   height: number | null;
   hasMetadataFile: boolean;
+  hasLosslessWebp: boolean;
   promptData: ParsedPromptData;
 }
 
@@ -28,7 +29,7 @@ export interface CreateImageResult {
 }
 
 export async function createImageWithMetadata(input: CreateImageInput): Promise<CreateImageResult> {
-  const { filename, s3Key, fileHash, width, height, hasMetadataFile, promptData } = input;
+  const { filename, s3Key, fileHash, width, height, hasMetadataFile, hasLosslessWebp, promptData } = input;
 
   return prisma.$transaction(async (tx) => {
     // Create image record
@@ -40,6 +41,7 @@ export async function createImageWithMetadata(input: CreateImageInput): Promise<
         width,
         height,
         hasMetadataFile,
+        hasLosslessWebp,
       },
     });
 

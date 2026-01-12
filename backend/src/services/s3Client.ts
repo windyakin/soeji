@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import * as crypto from "node:crypto";
 
@@ -79,6 +80,31 @@ export async function deleteFromS3(key: string): Promise<void> {
       Key: key,
     })
   );
+}
+
+export async function headS3Object(key: string): Promise<{
+  exists: boolean;
+  lastModified?: Date;
+  size?: number;
+}> {
+  try {
+    const response = await s3Client.send(
+      new HeadObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+      })
+    );
+    return {
+      exists: true,
+      lastModified: response.LastModified,
+      size: response.ContentLength,
+    };
+  } catch (error) {
+    if ((error as { name?: string }).name === "NotFound") {
+      return { exists: false };
+    }
+    throw error;
+  }
 }
 
 export { s3Client, BUCKET, S3_PUBLIC_ENDPOINT };

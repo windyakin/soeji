@@ -254,7 +254,7 @@ onUnmounted(() => {
               <i class="pi pi-spin pi-spinner"></i>
             </div>
             <img
-              :src="getThumbnailUrl(image.s3Url, { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE, fit: 'cover' })"
+              :src="getThumbnailUrl(image.s3Url, { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE, fit: 'cover', source: image.hasLosslessWebp ? 'lossless' : undefined })"
               :alt="image.filename"
               loading="lazy"
               :class="{ 'is-loading': isImageLoading(image.id) }"
