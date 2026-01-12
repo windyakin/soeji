@@ -115,22 +115,28 @@ export function authenticateLocal(
   )(req, res, next);
 }
 
-// Internal API key authentication for watcher service
+// Internal API key for watcher service (upload only)
 const WATCHER_API_KEY = process.env.WATCHER_API_KEY;
 
-export function authenticateWatcherOrAdmin(
+/**
+ * Authentication for upload endpoint only.
+ * Accepts either:
+ * - Watcher API key (X-Watcher-Key header) - limited to upload only
+ * - Admin user via JWT
+ */
+export function authenticateUpload(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  // Check for internal API key in header
+  // Check for internal API key in header (watcher service)
   const apiKey = req.headers["x-watcher-key"];
   if (WATCHER_API_KEY && apiKey === WATCHER_API_KEY) {
-    // Watcher authenticated via API key
+    // Watcher authenticated via API key - upload role for upload only
     req.user = {
-      id: "watcher",
-      username: "watcher",
-      role: "admin",
+      id: "upload",
+      username: "upload",
+      role: "upload",
       mustChangePassword: false,
     } as AuthUser;
     return next();

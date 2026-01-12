@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { authenticateWatcherOrAdmin } from "../middleware/auth.js";
+import { authenticateUpload } from "../middleware/auth.js";
 import { processUploadedImage } from "../services/imageProcessor.js";
 
 const router = Router();
@@ -20,8 +20,8 @@ const upload = multer({
   },
 });
 
-// Apply authentication (admin or watcher API key)
-router.use(authenticateWatcherOrAdmin);
+// Apply authentication (admin or upload API key)
+router.use(authenticateUpload);
 
 /**
  * POST /api/upload

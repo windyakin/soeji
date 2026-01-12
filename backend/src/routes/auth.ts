@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { UserRole } from "@prisma/client";
 import { prisma } from "../services/database.js";
 import { hashPassword } from "../services/password.js";
 import {
@@ -196,11 +197,11 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
   try {
     const user = req.user!;
 
-    // Generate tokens
+    // Generate tokens (login users are always DB users with UserRole)
     const { token: accessToken, expiresAt: accessTokenExpiresAt } = generateAccessToken({
       userId: user.id,
       username: user.username,
-      role: user.role,
+      role: user.role as UserRole,
     });
     const { token: refreshToken, expiresAt: refreshTokenExpiresAt } = await generateRefreshToken(user.id);
 
