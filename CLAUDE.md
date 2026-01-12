@@ -419,3 +419,28 @@ ImageGridでは固定サイズ（400px）を使用し、キャッシュ効率を
 - converter変更時はDocker再ビルドが必要（`docker compose build converter`）
 - フロントエンドはPWA対応のため、Service Worker更新時にユーザーへ通知が表示される
 - watcher用の内部APIキー（`WATCHER_API_KEY`）はbackendとwatcher間で共有
+
+### マイグレーションファイルの作成（重要）
+
+**Prismaスキーマ（`schema.prisma`）を変更した場合、必ずマイグレーションファイルを作成すること。**
+
+マイグレーションファイルがないと、本番環境やDockerでのデプロイ時にスキーマが適用されない。
+
+```bash
+# 方法1: Prisma CLIで自動生成（推奨）
+npm run db:migrate -w @soeji/backend -- --name <migration_name>
+
+# 方法2: 手動作成
+# backend/prisma/migrations/YYYYMMDDHHMMSS_<name>/migration.sql を作成
+```
+
+**手動作成時の命名規則:**
+- ディレクトリ名: `YYYYMMDDHHMMSS_<snake_case_description>`
+  - 例: `20260112000000_add_has_lossless_webp`
+- ファイル名: `migration.sql`
+
+**チェックリスト:**
+- [ ] `schema.prisma` にカラム/テーブル追加
+- [ ] マイグレーションファイル作成
+- [ ] `npm run db:generate` でPrismaクライアント再生成
+- [ ] ローカルで `npm run db:push` または `npm run db:migrate` でテスト
