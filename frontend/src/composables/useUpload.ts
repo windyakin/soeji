@@ -309,7 +309,7 @@ export function useUpload() {
 
   function clearCompleted() {
     queue.value = queue.value.filter(
-      (item) => item.status !== "success" && item.status !== "duplicate"
+      (item) => item.status !== "success" && item.status !== "duplicate" && item.status !== "error"
     );
   }
 
