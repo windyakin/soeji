@@ -1,0 +1,25 @@
+{
+  "name": "@soeji/watcher",
+  "version": "1.0.0",
+  "description": "File watcher that sends images to backend API",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.16"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.0",
+    "dotenv": "^16.0.0",
+    "form-data": "^4.0.0"
+  }
+}

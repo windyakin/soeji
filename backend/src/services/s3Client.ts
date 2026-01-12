@@ -4,8 +4,6 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
-import * as fs from "node:fs";
-import * as path from "node:path";
 import * as crypto from "node:crypto";
 
 const s3Client = new S3Client({
@@ -19,31 +17,43 @@ const s3Client = new S3Client({
 });
 
 const BUCKET = process.env.S3_BUCKET || "soeji-images";
+const S3_PUBLIC_ENDPOINT = process.env.S3_PUBLIC_ENDPOINT || "http://localhost:9080";
 
-export function calculateFileHash(filePath: string): string {
-  const fileBuffer = fs.readFileSync(filePath);
-  return crypto.createHash("sha256").update(fileBuffer).digest("hex");
+export function calculateBufferHash(buffer: Buffer): string {
+  return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
-export async function uploadToS3(
-  filePath: string,
-  key?: string
-): Promise<{ key: string; hash: string }> {
-  const fileBuffer = fs.readFileSync(filePath);
-  const hash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
-  const ext = path.extname(filePath);
-  const s3Key = key || `${hash}${ext}`;
+export function buildS3Url(s3Key: string): string {
+  return `${S3_PUBLIC_ENDPOINT}/${BUCKET}/${s3Key}`;
+}
 
+export async function uploadBufferToS3(
+  buffer: Buffer,
+  key: string,
+  contentType: string = "image/png"
+): Promise<void> {
   await s3Client.send(
     new PutObjectCommand({
       Bucket: BUCKET,
-      Key: s3Key,
-      Body: fileBuffer,
-      ContentType: "image/png",
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
     })
   );
+}
 
-  return { key: s3Key, hash };
+export async function uploadMetadataToS3(
+  json: string,
+  key: string
+): Promise<void> {
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: json,
+      ContentType: "application/json",
+    })
+  );
 }
 
 export async function downloadFromS3(key: string): Promise<Buffer> {
@@ -71,4 +81,4 @@ export async function deleteFromS3(key: string): Promise<void> {
   );
 }
 
-export { s3Client, BUCKET };
+export { s3Client, BUCKET, S3_PUBLIC_ENDPOINT };

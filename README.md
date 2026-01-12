@@ -14,6 +14,7 @@ NAI で作った PNG画像のメタデータを解析し、検索可能なライ
 - 画像のS3互換ストレージへの保存
 - ファイル監視による自動登録
 - Samba経由でのファイル共有
+- WebUIからのドラッグ＆ドロップアップロード（admin権限）
 - PNG→WebP自動変換（Accept: image/webp対応）
 - サムネイル生成（リサイズ・クロップ）
 - CDNキャッシュによる高速配信
@@ -23,13 +24,13 @@ NAI で作った PNG画像のメタデータを解析し、検索可能なライ
 | サービス | 説明 |
 |---------|------|
 | **frontend** | Vue 3 + PrimeVue製のWebUI / nginxでホスト |
-| **backend** | Express製のAPI / 検索・画像情報取得のエンドポイントを提供 |
-| **service** | ファイル監視サービス / PNGファイルを検知し、メタデータ抽出・DB/S3登録・インデックス作成を行う |
+| **backend** | Express製のAPI / 画像処理・検索・画像情報取得のエンドポイントを提供 |
+| **watcher** | ファイル監視サービス / PNGファイルを検知し、backend APIを呼び出す |
 | **postgres** | メインデータベース / 画像情報、タグ、メタデータを保存 |
 | **meilisearch** | 全文検索エンジン / タグやプロンプトでの高速検索を提供 |
 | **rustfs** | S3互換オブジェクトストレージ / 画像ファイルを保存 |
 | **cdn** | Nginx CDN / 画像キャッシュ・配信最適化 |
-| **converter** | Rust製画像変換 / PNG→WebP変換・サムネイル生成 |
+| **converter** | Go製画像変換 / PNG→WebP変換・サムネイル生成 |
 | **samba** | ファイル共有 / watchディレクトリをネットワーク共有 |
 | **migrate** | DBマイグレーション専用コンテナ / 起動時にスキーマを同期 |
 
@@ -65,7 +66,9 @@ docker compose logs -f
 
 ### 画像の登録
 
-画像の登録は Samba 経由で行う設計です。
+画像の登録方法は2つあります。
+
+#### 1. Samba 経由（自動登録）
 
 - macOS の場合
    - Finderから `smb://localhost/images` に接続
@@ -74,14 +77,21 @@ docker compose logs -f
 - ユーザー名: `soeji`, パスワード: `soeji`
 - PNGファイルをコピー
 
-ファイルが追加されると、 service が自動的に以下の処理を行います。
+ファイルが追加されると、watcher が自動的に以下の処理を行います。
 
 1. ファイル転送の完了を待機（PNGシグネチャの検証）
-2. メタデータを抽出
-3. S3にアップロード
-4. DBに登録
-5. Meilisearchにインデックス
-6. 元ファイルを削除（設定による）
+2. backend `/api/upload` APIを呼び出し
+3. backendがメタデータ抽出・S3アップロード・DB登録・インデックス作成
+4. 元ファイルを削除（設定による）
+
+#### 2. WebUI 経由（ドラッグ＆ドロップ）
+
+admin権限を持つユーザーは、WebUIから直接画像をアップロードできます。
+
+1. WebUIにログイン
+2. 画面上にPNGファイルをドラッグ＆ドロップ、またはメニューからアップロードボタンをクリック
+3. 進捗表示付きで最大3並列でアップロード
+4. 重複ファイルは自動的にスキップ
 
 ## ローカル開発
 
@@ -95,7 +105,7 @@ npm install
 docker compose up -d postgres meilisearch rustfs rustfs-setup cdn samba converter adminer
 
 # DBスキーマの同期
-npm run db:push -w @soeji/service
+npm run db:push -w @soeji/backend
 
 # 開発モードでまとめて起動
 npm run dev
@@ -106,31 +116,20 @@ npm run dev
 ```
 soeji/
 ├── frontend/          # Vue 3 + PrimeVue WebUI
-├── backend/           # Express API
-├── service/           # ファイル監視・処理サービス
-│   ├── prisma/        # Prismaスキーマ
-│   └── src/services/  # 主要なサービスロジック
-├── converter/         # Rust製画像変換サービス
-│   └── src/           # Axum HTTPサーバー
+├── backend/           # Express API + 画像処理
+│   ├── prisma/        # Prismaスキーマ・マイグレーション
+│   └── src/
+│       ├── routes/    # APIルート
+│       ├── services/  # 主要なサービスロジック
+│       └── scripts/   # 管理スクリプト
+├── watcher/           # ファイル監視サービス（API呼び出しのみ）
+│   └── src/           # 監視ロジック
+├── converter/         # Go製画像変換サービス
 ├── cdn/               # Nginx CDN設定
 └── docker-compose.yml
 ```
 
 ## 環境変数
-
-### service
-
-| 変数 | デフォルト | 説明 |
-|-----|-----------|------|
-| `DATABASE_URL` | - | PostgreSQL接続URL |
-| `MEILISEARCH_HOST` | `http://localhost:7700` | MeilisearchホストURL |
-| `MEILISEARCH_API_KEY` | - | Meilisearch APIキー |
-| `S3_ENDPOINT` | `http://localhost:9000` | S3エンドポイント（内部用） |
-| `S3_ACCESS_KEY` | - | S3アクセスキー |
-| `S3_SECRET_KEY` | - | S3シークレットキー |
-| `S3_BUCKET` | `soeji-images` | S3バケット名 |
-| `WATCH_DIR` | `./watch` | 監視ディレクトリ |
-| `DELETE_AFTER_PROCESS` | `true` | 処理後にファイルを削除するか |
 
 ### backend
 
@@ -141,8 +140,20 @@ soeji/
 | `MEILISEARCH_API_KEY` | - | Meilisearch APIキー |
 | `S3_ENDPOINT` | `http://localhost:9000` | S3エンドポイント（内部用） |
 | `S3_PUBLIC_ENDPOINT` | `http://localhost:9080` | S3公開エンドポイント（CDN経由推奨） |
+| `S3_ACCESS_KEY` | - | S3アクセスキー |
+| `S3_SECRET_KEY` | - | S3シークレットキー |
 | `S3_BUCKET` | `soeji-images` | S3バケット名 |
 | `PORT` | `3000` | APIサーバーポート |
+| `WATCHER_API_KEY` | - | watcher用内部APIキー |
+
+### watcher
+
+| 変数 | デフォルト | 説明 |
+|-----|-----------|------|
+| `BACKEND_URL` | `http://localhost:3000` | backend APIのURL |
+| `WATCHER_API_KEY` | - | backend認証用APIキー |
+| `WATCH_DIR` | `./watch` | 監視ディレクトリ |
+| `DELETE_AFTER_PROCESS` | `true` | 処理後にファイルを削除するか |
 
 ### converter
 
@@ -157,7 +168,7 @@ soeji/
 
 ## 画像配信
 
-CDN（nginx）とconverter（Rust）により、画像は自動的に最適化されて配信されます。
+CDN（nginx）とconverter（Go）により、画像は自動的に最適化されて配信されます。
 
 ### 配信フロー
 
@@ -193,6 +204,27 @@ GET http://localhost:9080/soeji-images/{hash}.png?w=400&h=400&fit=cover
 
 ## API
 
+### 画像アップロード
+
+```
+POST /api/upload
+Content-Type: multipart/form-data
+Authorization: Required (admin only) または X-Watcher-Key ヘッダ
+
+Response:
+{
+  "success": true,
+  "image": { "id", "filename", "s3Url", "width", "height", "metadataFormat", "createdAt" }
+}
+
+または重複時:
+{
+  "success": true,
+  "duplicate": true,
+  "existingImage": { "id", "filename", "s3Url" }
+}
+```
+
 ### 検索
 
 ```
@@ -202,7 +234,7 @@ GET /api/search?q=検索クエリ&limit=20&offset=0
 ### タグサジェスト
 
 ```
-GET /api/search/suggest?q=プレフィックス
+GET /api/tags/suggest?q=プレフィックス
 ```
 
 ### 画像一覧
@@ -215,6 +247,28 @@ GET /api/images?limit=20&offset=0
 
 ```
 GET /api/images/:id
+```
+
+### 画像削除
+
+```
+DELETE /api/images/:id
+Authorization: Required (admin/user)
+```
+
+### タグ追加（一括）
+
+```
+POST /api/images/tags
+Authorization: Required (admin/user)
+Body: { "imageIds": ["id1", "id2"], "tags": ["tag1", "tag2"] }
+```
+
+### タグ削除
+
+```
+DELETE /api/images/:imageId/tags/:tagId
+Authorization: Required (admin/user)
 ```
 
 ## ライセンス

@@ -9,8 +9,8 @@ soejiはNovelAI（NAI）で生成されたPNG画像のメタデータを解析�
 ## 技術スタック
 
 - **frontend**: Vue 3 + PrimeVue + TypeScript + PWA（Vite PWA）
-- **backend**: Express + TypeScript
-- **service**: Node.js + TypeScript（ファイル監視・処理）
+- **backend**: Express + TypeScript（API + 画像処理）
+- **watcher**: Node.js + TypeScript（ファイル監視のみ）
 - **データベース**: PostgreSQL + Prisma ORM
 - **検索**: Meilisearch
 - **ストレージ**: rustfs（S3互換）
@@ -25,17 +25,25 @@ soeji/
 ├── frontend/           # Vue 3 WebUI（PWA対応）
 │   ├── src/
 │   │   ├── components/     # UIコンポーネント
+│   │   │   └── upload/     # アップロード関連コンポーネント
 │   │   ├── composables/    # Vue Composables
 │   │   ├── pages/          # ページコンポーネント
 │   │   ├── router/         # Vue Router設定
 │   │   ├── types/          # TypeScript型定義
 │   │   └── utils/          # ユーティリティ関数
 │   └── public/             # 静的ファイル・PWAアイコン
-├── backend/            # Express API
-│   └── src/routes/     # APIルート
-├── service/            # ファイル監視・処理サービス
-│   ├── prisma/         # Prismaスキーマ（DBの定義はここ）
-│   └── src/services/   # 主要なサービスロジック
+├── backend/            # Express API + 画像処理
+│   ├── prisma/         # Prismaスキーマ（DBの定義）
+│   │   └── migrations/ # DBマイグレーション
+│   └── src/
+│       ├── routes/     # APIルート
+│       ├── services/   # 主要なサービスロジック
+│       │   └── readers/ # メタデータリーダー
+│       ├── scripts/    # 管理スクリプト
+│       ├── middleware/ # 認証ミドルウェア
+│       └── types/      # TypeScript型定義
+├── watcher/            # ファイル監視サービス（API呼び出しのみ）
+│   └── src/            # 監視ロジック
 ├── converter/          # Go製画像変換サービス
 │   ├── main.go         # エントリーポイント
 │   ├── handlers.go     # HTTPハンドラー
@@ -57,13 +65,22 @@ npm run dev
 # 個別サービスのビルド
 npm run build -w @soeji/frontend
 npm run build -w @soeji/backend
-npm run build -w @soeji/service
+npm run build -w @soeji/watcher
 
 # Prismaクライアント生成
-npm run db:generate -w @soeji/service
+npm run db:generate -w @soeji/backend
 
 # DBスキーマ同期（開発用）
-npm run db:push -w @soeji/service
+npm run db:push -w @soeji/backend
+
+# DBマイグレーション（本番用）
+npm run db:migrate -w @soeji/backend
+
+# タグ再インデックス（開発用）
+npm run reindex-tags:dev -w @soeji/backend
+
+# タグ再インデックス（ビルド後）
+npm run reindex-tags -w @soeji/backend
 
 # Docker Compose（インフラのみ）
 docker compose up -d postgres meilisearch rustfs rustfs-setup
@@ -79,11 +96,30 @@ docker compose build converter
 
 ### データフロー
 
+#### Samba経由（watcher）
+
+```
+[Samba] → [watch_data] → [watcher] → [backend /api/upload] → [S3 + PostgreSQL + Meilisearch]
+```
+
 1. Samba経由でPNGファイルが`watch_data`ボリュームに追加される
-2. serviceがファイルを検知し、転送完了を待機（PNGシグネチャ検証）
-3. PNGメタデータを抽出（プロンプト、タグ、シード等）
-4. S3にアップロード、DBに登録、Meilisearchにインデックス
+2. watcherがファイルを検知し、転送完了を待機（PNGシグネチャ検証）
+3. watcherがbackend `/api/upload` APIを呼び出し
+4. backendがメタデータ抽出、S3アップロード、DB登録、Meilisearchインデックスを実行
 5. 元ファイルを削除
+
+#### WebUI経由（直接アップロード）
+
+```
+[WebUI] → [backend /api/upload] → [S3 + PostgreSQL + Meilisearch]
+                                → [{key}.metadata.json を S3 に保存]
+```
+
+1. admin権限ユーザーがWebUIからドラッグ＆ドロップでアップロード
+2. backendが画像処理を実行（メタデータ抽出、重複チェック）
+3. S3に画像とメタデータJSON（`{hash}.metadata.json`）を保存
+4. DBに登録（`hasMetadataFile: true`フラグ付き）
+5. Meilisearchにインデックス
 
 ### S3 URL生成
 
@@ -96,6 +132,13 @@ function buildS3Url(s3Key: string): string {
   return `${S3_PUBLIC_ENDPOINT}/${S3_BUCKET}/${s3Key}`;
 }
 ```
+
+### S3メタデータ保存
+
+画像アップロード時に、抽出したメタデータをJSONファイルとしてS3に保存：
+- ファイル名: `{hash}.metadata.json`（画像と同じハッシュ）
+- インデント無し（最小サイズ）
+- `hasMetadataFile`フラグでDB上で追跡（再インデックス用）
 
 ### 重複ファイル処理
 
@@ -110,10 +153,11 @@ Samba経由の転送中にファイルを検知した場合に備え、以下を
 2. 先頭8バイトがPNGシグネチャと一致
 3. 最大60秒待機、タイムアウト時はスキップ
 
-### タグキャッシュ
+### タグインデックス
 
-タグサジェスト用にインメモリキャッシュを使用（5分間隔で更新）。
-PostgreSQLへの負荷を軽減。
+タグサジェスト用にMeilisearchを使用。
+- 50%以上がポジティブなメタデータタグ、またはユーザー作成タグのみインデックス
+- `reindex-tags`スクリプトで全タグを再評価・再インデックス可能
 
 ## フロントエンド機能
 
@@ -124,6 +168,21 @@ PostgreSQLへの負荷を軽減。
 | `/` | `GalleryPage.vue` | メインギャラリー |
 | `/gallery/:id` | `GalleryPage.vue` | 画像詳細表示 |
 | `/settings` | `SettingsPage.vue` | 設定ページ |
+
+### 画像アップロード機能
+
+admin権限ユーザーのみ利用可能：
+
+- **ドラッグ＆ドロップ**: 画面全体にオーバーレイ表示
+- **ファイル選択**: メニューからアップロードボタン
+- **並列アップロード**: 最大3並列
+- **進捗表示**: XHRによるリアルタイム進捗
+- **重複検知**: サーバー側でハッシュチェック
+- **関連ファイル**:
+  - `frontend/src/composables/useUpload.ts`
+  - `frontend/src/components/upload/UploadDropZone.vue`
+  - `frontend/src/components/upload/UploadQueueItem.vue`
+  - `frontend/src/components/upload/UploadPanel.vue`
 
 ### PIN保護機能
 
@@ -180,29 +239,47 @@ PostgreSQLへの負荷を軽減。
 | パス | メソッド | 説明 |
 |-----|---------|------|
 | `/api/search` | GET | 画像検索（Meilisearch） |
+| `/api/images` | GET | 画像一覧取得 |
 | `/api/images/:id` | GET | 画像詳細取得 |
+| `/api/images/:id` | DELETE | 画像削除（S3 + DB + Meilisearch） |
+| `/api/images/tags` | POST | 画像に一括タグ追加 |
+| `/api/images/:imageId/tags/:tagId` | DELETE | 画像からタグ削除 |
+| `/api/upload` | POST | 画像アップロード |
 | `/api/tags` | GET | タグ一覧・サジェスト |
 | `/api/stats` | GET | 統計情報（キャッシュ付き） |
-| `/api/auth/verify` | GET | CDN認証用トークン検証 |
+| `/api/auth/*` | - | 認証関連 |
 
 ### 統計APIキャッシュ
 
 - **基本統計**: 5分間TTL
 - **ホットタグ**: 1時間TTL
 
+### 画像削除時の処理
+
+1. S3から画像ファイル（`.png`）を削除
+2. S3からメタデータファイル（`.metadata.json`）を削除
+3. Meilisearchからドキュメントを削除
+4. DBから画像レコードを削除（カスケードでImageTag、ImageMetadataも削除）
+5. 影響を受けたタグのインデックスを更新
+
 ## 重要なファイル
 
 | ファイル | 役割 |
 |---------|------|
-| `service/prisma/schema.prisma` | DBスキーマ定義 |
-| `service/src/services/watcher.ts` | ファイル監視・キュー処理 |
-| `service/src/services/imageProcessor.ts` | 画像処理メインロジック |
-| `service/src/services/pngReader.ts` | PNGメタデータ解析 |
-| `service/src/services/meilisearchClient.ts` | 検索インデックス操作 |
-| `service/src/services/database.ts` | Prismaクライアント設定 |
-| `service/src/services/s3Client.ts` | S3クライアント設定 |
+| `backend/prisma/schema.prisma` | DBスキーマ定義 |
+| `backend/src/services/imageProcessor.ts` | 画像処理メインロジック |
+| `backend/src/services/readers/NAIPngMetaReader.ts` | NovelAI PNGメタデータ解析 |
+| `backend/src/services/readers/index.ts` | リーダー登録・検出 |
+| `backend/src/services/meilisearch.ts` | 検索インデックス操作 |
+| `backend/src/services/database.ts` | Prismaクライアント・DB操作 |
+| `backend/src/services/s3Client.ts` | S3クライアント設定 |
+| `backend/src/services/tagIndexer.ts` | タグインデックス管理 |
+| `backend/src/routes/upload.ts` | アップロードAPI |
+| `backend/src/routes/images.ts` | 画像CRUD API |
 | `backend/src/routes/search.ts` | 検索API |
 | `backend/src/routes/stats.ts` | 統計API |
+| `backend/src/scripts/reindexTags.ts` | タグ再インデックススクリプト |
+| `watcher/src/index.ts` | ファイル監視・API呼び出し |
 | `frontend/src/App.vue` | アプリルート（PIN保護） |
 | `frontend/src/pages/GalleryPage.vue` | ギャラリーページ |
 | `frontend/src/pages/SettingsPage.vue` | 設定ページ |
@@ -210,6 +287,7 @@ PostgreSQLへの負荷を軽減。
 | `frontend/src/components/ImageGrid.vue` | グリッド表示 |
 | `frontend/src/composables/usePinProtection.ts` | PIN保護ロジック |
 | `frontend/src/composables/usePwaUpdate.ts` | PWA更新ロジック |
+| `frontend/src/composables/useUpload.ts` | アップロードロジック |
 | `frontend/src/composables/useApi.ts` | API通信 |
 | `frontend/src/utils/image.ts` | 画像URL生成ユーティリティ |
 | `frontend/src/types/api.ts` | API型定義 |
@@ -224,7 +302,7 @@ PostgreSQLへの負荷を軽減。
 |---------|--------|------|
 | frontend | 8080 | nginx + Vue SPA（PWA） |
 | backend | 3000（内部） | Express API |
-| service | - | ファイル監視 |
+| watcher | - | ファイル監視（API呼び出しのみ） |
 | postgres | 5432 | PostgreSQL |
 | meilisearch | 7700 | 検索エンジン |
 | rustfs | 9000, 9001 | S3互換ストレージ |
@@ -239,7 +317,7 @@ PostgreSQLへの負荷を軽減。
 1. postgres（healthcheck待ち）
 2. migrate（`prisma db push`実行後終了）
 3. meilisearch, rustfs-setup
-4. backend, service（migrate完了後）
+4. backend, watcher（migrate完了後）
 5. converter（rustfs-setup完了後）
 6. cdn（converter完了後）
 7. frontend
@@ -324,9 +402,10 @@ ImageGridでは固定サイズ（400px）を使用し、キャッシュ効率を
 
 ## 注意点
 
-- Prismaスキーマ変更後は`npm run db:generate -w @soeji/service`が必要
+- Prismaスキーマ変更後は`npm run db:generate -w @soeji/backend`が必要
 - フロントエンドの型定義は`frontend/src/types/api.ts`で管理
 - backendはS3_PUBLIC_ENDPOINTからURLを生成するため、環境変数の設定に注意
 - S3_PUBLIC_ENDPOINTはCDN経由（`:9080`）を指定することで画像変換・キャッシュを利用
 - converter変更時はDocker再ビルドが必要（`docker compose build converter`）
 - フロントエンドはPWA対応のため、Service Worker更新時にユーザーへ通知が表示される
+- watcher用の内部APIキー（`WATCHER_API_KEY`）はbackendとwatcher間で共有

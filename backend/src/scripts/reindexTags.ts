@@ -1,14 +1,12 @@
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../services/database.js";
 import {
   initializeTagsIndex,
   clearTagsIndex,
   indexTags,
   tokenizeTagName,
-  TagDocument,
-} from "../services/meilisearchClient.js";
-
-const prisma = new PrismaClient();
+  type TagDocument,
+} from "../services/meilisearch.js";
 
 interface TagWithUsage {
   id: string;

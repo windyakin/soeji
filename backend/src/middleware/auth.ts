@@ -114,3 +114,55 @@ export function authenticateLocal(
     }
   )(req, res, next);
 }
+
+// Internal API key authentication for watcher service
+const WATCHER_API_KEY = process.env.WATCHER_API_KEY;
+
+export function authenticateWatcherOrAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  // Check for internal API key in header
+  const apiKey = req.headers["x-watcher-key"];
+  if (WATCHER_API_KEY && apiKey === WATCHER_API_KEY) {
+    // Watcher authenticated via API key
+    req.user = {
+      id: "watcher",
+      username: "watcher",
+      role: "admin",
+      mustChangePassword: false,
+    } as AuthUser;
+    return next();
+  }
+
+  // Fall back to normal JWT authentication with admin check
+  if (!isAuthEnabled()) {
+    req.user = { id: "system", username: "system", role: "admin", mustChangePassword: false } as AuthUser;
+    return next();
+  }
+
+  passport.authenticate(
+    "jwt",
+    { session: false },
+    (err: Error | null, user: AuthUser | false, _info: unknown) => {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      if (user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      if (user.mustChangePassword) {
+        return res.status(403).json({
+          error: "Password change required",
+          code: "MUST_CHANGE_PASSWORD",
+        });
+      }
+      req.user = user;
+      next();
+    }
+  )(req, res, next);
+}

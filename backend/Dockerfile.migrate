@@ -6,16 +6,16 @@ WORKDIR /app
 # Copy root package files for workspaces
 COPY package.json package-lock.json ./
 
-# Copy service package.json
-COPY service/package.json ./service/
+# Copy backend package.json
+COPY backend/package.json ./backend/
 
 # Copy prisma schema
-COPY service/prisma ./service/prisma
+COPY backend/prisma ./backend/prisma
 
 # Install dependencies
-RUN npm ci -w @soeji/service
+RUN npm ci -w @soeji/backend
 
-WORKDIR /app/service
+WORKDIR /app/backend
 
 # Run db push to sync schema (creates tables if not exist)
 CMD ["npx", "prisma", "db", "push", "--skip-generate"]

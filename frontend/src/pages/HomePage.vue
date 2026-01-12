@@ -10,27 +10,36 @@ import ImageLightbox from "../components/ImageLightbox.vue";
 import ImageInfoModal from "../components/ImageInfoModal.vue";
 import TaggingPanel from "../components/TaggingPanel.vue";
 import StatsDashboard from "../components/StatsDashboard.vue";
+import UploadButton from "../components/upload/UploadButton.vue";
 import { useInfiniteSearch, addTagsToImages } from "../composables/useApi";
 import { useSearchParams } from "../composables/useSearchParams";
 import { useImageSelection } from "../composables/useImageSelection";
 import { useAuth } from "../composables/useAuth";
+import { useUpload } from "../composables/useUpload";
 import type { SearchHit } from "../types/api";
 
 const route = useRoute();
 const router = useRouter();
 const { canEdit, canManageUsers, authEnabled, isAuthenticated, logout } = useAuth();
+const { addFiles } = useUpload();
+
+// Upload button ref for opening dialog programmatically
+const uploadButtonRef = ref<InstanceType<typeof UploadButton> | null>(null);
+
+const isDragOverPage = ref(false);
+let dragCounter = 0;
 
 // Menu (only used when auth is enabled)
 const menuRef = ref<InstanceType<typeof Menu> | null>(null);
 const showMenu = computed(() => authEnabled.value);
 const menuItems = computed<MenuItem[]>(() => {
-  const items: MenuItem[] = [
-    {
-      label: "Settings",
-      icon: "pi pi-cog",
-      command: () => router.replace("/settings"),
-    },
-  ];
+  const items: MenuItem[] = [];
+
+  items.push({
+    label: "Settings",
+    icon: "pi pi-cog",
+    command: () => router.replace("/settings"),
+  });
 
   // Admin menu (only for admin users when auth is enabled)
   if (canManageUsers.value) {
@@ -363,10 +372,65 @@ function handleEnterFullscreen() {
 function goHome() {
   searchQuery.value = "";
 }
+
+// Drag and drop handlers for page-level upload (admin only)
+function handlePageDragEnter(event: DragEvent) {
+  event.preventDefault();
+  if (!canManageUsers.value) return;
+
+  dragCounter++;
+  if (event.dataTransfer?.types.includes("Files")) {
+    isDragOverPage.value = true;
+  }
+}
+
+function handlePageDragOver(event: DragEvent) {
+  event.preventDefault();
+}
+
+function handlePageDragLeave(event: DragEvent) {
+  event.preventDefault();
+  dragCounter--;
+  if (dragCounter === 0) {
+    isDragOverPage.value = false;
+  }
+}
+
+function handlePageDrop(event: DragEvent) {
+  event.preventDefault();
+  dragCounter = 0;
+  isDragOverPage.value = false;
+
+  if (!canManageUsers.value) return;
+
+  if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+    addFiles(event.dataTransfer.files);
+    uploadButtonRef.value?.openDialog();
+  }
+}
+
+function handleUploadComplete() {
+  // Refresh search results when new images are uploaded
+  search(searchQuery.value, searchMode.value);
+}
 </script>
 
 <template>
-  <div class="page-container">
+  <div
+    class="page-container"
+    @dragenter="handlePageDragEnter"
+    @dragover="handlePageDragOver"
+    @dragleave="handlePageDragLeave"
+    @drop="handlePageDrop"
+  >
+    <!-- Drag overlay (admin only) -->
+    <div v-if="isDragOverPage && canManageUsers" class="drag-overlay">
+      <div class="drag-overlay-content">
+        <i class="pi pi-cloud-upload drag-icon"></i>
+        <p>Drop images to upload</p>
+      </div>
+    </div>
+
     <!-- Sticky header with search -->
     <header class="app-header">
       <div class="header-content">
@@ -379,7 +443,14 @@ function goHome() {
         <div class="results-info">
           <span>{{ totalHits }} images found</span>
         </div>
-        <div class="menu-wrapper">
+        <div class="menu-wrapper flex items-center gap-2">
+          <!-- Upload button (admin only: shows upload icon or progress indicator) -->
+          <UploadButton
+            v-if="canManageUsers"
+            ref="uploadButtonRef"
+            @uploaded="handleUploadComplete"
+          />
+
           <!-- Menu button (when auth is enabled) -->
           <template v-if="showMenu">
             <Button
@@ -471,6 +542,7 @@ function goHome() {
       @add-tag="handleAddTag"
       @clear-selection="clearSelection"
     />
+
   </div>
 </template>
 
@@ -478,6 +550,41 @@ function goHome() {
 .page-container {
   min-height: 100vh;
   background: var(--p-surface-0);
+  position: relative;
+}
+
+.drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(var(--p-primary-500), 0.1);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.drag-overlay-content {
+  text-align: center;
+  padding: 3rem;
+  border: 3px dashed var(--p-primary-color);
+  border-radius: 16px;
+  background: var(--p-surface-0);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.drag-overlay .drag-icon {
+  font-size: 4rem;
+  color: var(--p-primary-color);
+  margin-bottom: 1rem;
+}
+
+.drag-overlay p {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--p-primary-color);
 }
 
 .app-header {

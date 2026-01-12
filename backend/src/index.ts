@@ -10,6 +10,7 @@ import { tagsRouter } from "./routes/tags.js";
 import { statsRouter } from "./routes/stats.js";
 import { authRouter } from "./routes/auth.js";
 import { usersRouter } from "./routes/users.js";
+import { uploadRouter } from "./routes/upload.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,6 +34,9 @@ app.use("/api/auth", authRouter);
 
 // User management routes (admin only)
 app.use("/api/users", usersRouter);
+
+// Upload route (admin or watcher API key)
+app.use("/api/upload", uploadRouter);
 
 // Protected routes
 app.use("/api/search", searchRouter);
