@@ -3,5 +3,9 @@
     "allow": [
       "Bash(npm run build:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "primevue"
+  ],
+  "enableAllProjectMcpServers": true
 }

@@ -126,6 +126,16 @@ docker compose build converter
 DBには`s3Key`（パス）のみを保存し、`s3Url`はAPIレスポンス時に生成する設計。
 これにより`S3_PUBLIC_ENDPOINT`を変更するだけでURLを切り替え可能。
 
+### ロスレスWebP生成
+
+アップロード時にオリジナルPNGに加えて、ロスレスWebP版（`{hash}.lossless.webp`）を生成・保存する。
+サムネイル生成時にロスレスWebPをソースとして使うことで、余計なメタデータを排除した効率的な変換が可能。
+
+- **環境変数**: `ENABLE_LOSSLESS_WEBP`（デフォルト: `true`、`false`で無効化）
+- **DBフィールド**: `hasLosslessWebp`（画像ごとにロスレスWebPの有無を記録）
+- **フロントエンド**: `hasLosslessWebp=true`の場合、`?source=lossless`パラメータを付与
+- **converter**: `source=lossless`の場合、`{hash}.lossless.webp`からサムネイルを生成
+
 ```typescript
 // backend/src/routes/search.ts, images.ts
 function buildS3Url(s3Key: string): string {

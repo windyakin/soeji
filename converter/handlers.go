@@ -42,6 +42,31 @@ func (s *AppState) ImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	query := r.URL.Query()
 
+	// Handle source parameter (whitelist approach for security)
+	// - "lossless": use {hash}.lossless.webp
+	// - "png": use {hash}.png
+	// - "webp": use {hash}.webp
+	// - empty: use original key extension
+	if source := query.Get("source"); source != "" {
+		// Get base key without extension
+		ext := ""
+		if idx := strings.LastIndex(key, "."); idx != -1 {
+			ext = key[idx:]
+			key = key[:idx]
+		}
+		switch source {
+		case "lossless":
+			key = key + ".lossless.webp"
+		case "png":
+			key = key + ".png"
+		case "webp":
+			key = key + ".webp"
+		default:
+			// Invalid source, restore original key
+			key = key + ext
+		}
+	}
+
 	// Check for download mode (passthrough without conversion)
 	if query.Get("download") == "1" {
 		s.handleDownload(w, r, ctx, bucket, key)

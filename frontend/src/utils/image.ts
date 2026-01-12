@@ -9,10 +9,14 @@ export function getThumbnailUrl(
     height?: number;
     quality?: number;
     fit?: 'cover' | 'contain' | 'fill';
+    source?: 'lossless' | 'png' | 'webp';
   } = {}
 ): string {
   const params = new URLSearchParams();
 
+  if (options.source) {
+    params.set('source', options.source);
+  }
   if (options.width) {
     params.set('w', options.width.toString());
   }

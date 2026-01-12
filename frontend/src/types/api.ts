@@ -20,6 +20,7 @@ export interface SearchHit {
   seed: number | null;
   width: number | null;
   height: number | null;
+  hasLosslessWebp: boolean;
   createdAt: number;
 }
 
@@ -67,6 +68,7 @@ export interface Image {
   fileHash: string;
   width: number | null;
   height: number | null;
+  hasLosslessWebp: boolean;
   createdAt: string;
   updatedAt: string;
   metadata: ImageMetadata | null;

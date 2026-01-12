@@ -15,6 +15,7 @@ model Image {
   width           Int?
   height          Int?
   hasMetadataFile Boolean  @default(false)
+  hasLosslessWebp Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

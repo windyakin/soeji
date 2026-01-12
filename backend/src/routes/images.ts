@@ -271,6 +271,7 @@ router.delete("/:id", editorsOnly, async (req, res) => {
       where: { id },
       select: {
         s3Key: true,
+        hasLosslessWebp: true,
         tags: { select: { tagId: true } },
       },
     });
@@ -303,6 +304,21 @@ router.delete("/:id", editorsOnly, async (req, res) => {
         );
       } catch (s3Error) {
         console.warn(`S3 metadata delete failed for ${metadataKey}:`, s3Error);
+      }
+
+      // Delete the lossless WebP file if it exists
+      if (image.hasLosslessWebp) {
+        const webpKey = image.s3Key.replace(/\.png$/, ".lossless.webp");
+        try {
+          await s3Client.send(
+            new DeleteObjectCommand({
+              Bucket: S3_BUCKET,
+              Key: webpKey,
+            })
+          );
+        } catch (s3Error) {
+          console.warn(`S3 lossless webp delete failed for ${webpKey}:`, s3Error);
+        }
       }
     }
 

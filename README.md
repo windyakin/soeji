@@ -145,6 +145,11 @@ soeji/
 | `S3_BUCKET` | `soeji-images` | S3バケット名 |
 | `PORT` | `3000` | APIサーバーポート |
 | `WATCHER_API_KEY` | - | watcher用内部APIキー |
+| `ENABLE_LOSSLESS_WEBP` | `true` | アップロード時にロスレスWebP版を生成するか（`false`で無効化） |
+
+> [!NOTE]
+> `ENABLE_LOSSLESS_WEBP` は有効化すると、アップロード時にロスレス WebP を S3 上に保存します。
+> オリジナル画像と併せて保存するので、ディスク容量を多く消費しますが（+70%ぐらい）、 converter から取得する際の転送量を削減し、変換スピードを改善することができます。
 
 ### watcher
 

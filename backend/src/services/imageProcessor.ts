@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import sharp from "sharp";
 import { detectAndReadMetadata, getPngDimensions, createEmptyMetadata } from "./readers/index.js";
 import type { ParsedMetadata } from "./readers/types.js";
 import {
@@ -11,6 +12,9 @@ import { createImageWithMetadata, findImageByHash } from "./database.js";
 import { indexImage, type ImageDocument, type WeightedTagDocument } from "./meilisearch.js";
 import { evaluateAndUpdateTags } from "./tagIndexer.js";
 import type { ParsedPromptData, WeightedTag } from "../types/prompt.js";
+
+// Environment variable to enable/disable lossless WebP generation
+const ENABLE_LOSSLESS_WEBP = process.env.ENABLE_LOSSLESS_WEBP !== "false";
 
 export interface ProcessResult {
   success: boolean;
@@ -30,6 +34,18 @@ export interface ProcessResult {
     createdAt: string;
   };
   error?: string;
+}
+
+/**
+ * Convert PNG buffer to lossless WebP with metadata stripped
+ */
+async function convertToLosslessWebP(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .webp({
+      lossless: true,
+      effort: 4,
+    })
+    .toBuffer();
 }
 
 /**
@@ -55,13 +71,14 @@ function toParsedPromptData(metadata: ParsedMetadata): ParsedPromptData {
 /**
  * Build an ImageDocument for Meilisearch indexing
  */
-function buildImageDocument(
+export function buildImageDocument(
   image: {
     id: string;
     filename: string;
     s3Key: string;
     width: number | null;
     height: number | null;
+    hasLosslessWebp: boolean;
     createdAt: Date;
   },
   metadata: ParsedMetadata | null
@@ -109,6 +126,7 @@ function buildImageDocument(
     seed: metadata?.seed ?? null,
     width: image.width,
     height: image.height,
+    hasLosslessWebp: image.hasLosslessWebp,
     createdAt: image.createdAt.getTime(),
   };
 }
@@ -159,6 +177,15 @@ export async function processUploadedImage(
     const s3Key = `${fileHash}.png`;
     await uploadBufferToS3(buffer, s3Key);
 
+    // Generate and upload lossless WebP version (if enabled)
+    let hasLosslessWebp = false;
+    if (ENABLE_LOSSLESS_WEBP) {
+      const webpBuffer = await convertToLosslessWebP(buffer);
+      const webpKey = `${fileHash}.lossless.webp`;
+      await uploadBufferToS3(webpBuffer, webpKey);
+      hasLosslessWebp = true;
+    }
+
     // Save metadata JSON to S3 alongside the image (no indentation for minimal size)
     const metadataKey = `${fileHash}.metadata.json`;
     const metadataJson = {
@@ -186,6 +213,7 @@ export async function processUploadedImage(
       width: finalWidth,
       height: finalHeight,
       hasMetadataFile: true,
+      hasLosslessWebp,
       promptData,
     });
 
@@ -197,6 +225,7 @@ export async function processUploadedImage(
         s3Key: image.s3Key,
         width: image.width,
         height: image.height,
+        hasLosslessWebp,
         createdAt: image.createdAt,
       },
       metadataResult.metadata
