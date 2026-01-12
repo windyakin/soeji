@@ -1,7 +1,36 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import type { ParsedPromptData } from "../types/prompt.js";
 
 export const prisma = new PrismaClient();
+
+/**
+ * Find or create a tag, handling concurrent creation race conditions.
+ * Uses upsert with fallback to findUnique on unique constraint violation.
+ */
+async function findOrCreateTag(
+  tx: Prisma.TransactionClient,
+  name: string,
+  category: string | null
+) {
+  try {
+    return await tx.tag.upsert({
+      where: { name },
+      update: {},
+      create: { name, category },
+    });
+  } catch (error) {
+    // P2002: Unique constraint violation - another transaction created the tag
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const existingTag = await tx.tag.findUnique({ where: { name } });
+      if (existingTag) {
+        return existingTag;
+      }
+      // If still not found, rethrow
+      throw error;
+    }
+    throw error;
+  }
+}
 
 export interface CreateImageInput {
   filename: string;
@@ -68,15 +97,8 @@ export async function createImageWithMetadata(input: CreateImageInput): Promise<
       const colonIndex = weightedTag.name.indexOf(":");
       const category = colonIndex > 0 ? weightedTag.name.slice(0, colonIndex) : null;
 
-      // Use upsert to handle concurrent uploads with same tags
-      const tag = await tx.tag.upsert({
-        where: { name: weightedTag.name },
-        update: {}, // No update needed if tag already exists
-        create: {
-          name: weightedTag.name,
-          category,
-        },
-      });
+      // Use findOrCreateTag to handle concurrent uploads with same tags
+      const tag = await findOrCreateTag(tx, weightedTag.name, category);
 
       await tx.imageTag.create({
         data: {
