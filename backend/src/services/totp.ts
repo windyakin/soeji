@@ -98,7 +98,8 @@ export async function verifyBackupCode(
   code: string,
   hashedCodes: string[]
 ): Promise<number> {
-  const normalizedCode = code.toUpperCase().replace(/\s/g, "");
+  // Remove spaces, hyphens, and convert to uppercase for comparison
+  const normalizedCode = code.toUpperCase().replace(/[\s-]/g, "");
 
   for (let i = 0; i < hashedCodes.length; i++) {
     const isValid = await bcrypt.compare(normalizedCode, hashedCodes[i]);
