@@ -37,6 +37,9 @@ let temporaryPassword: string | null = null;
 // Token refresh check timer
 let refreshCheckTimer: ReturnType<typeof setInterval> | null = null;
 
+// Refresh in progress promise (for deduplication)
+let refreshPromise: Promise<boolean> | null = null;
+
 // Check token expiration and refresh if needed
 async function checkAndRefreshToken(): Promise<void> {
   if (!isAuthenticated.value || !authEnabled.value) {
@@ -85,32 +88,48 @@ function stopRefreshCheckTimer(): void {
 }
 
 // Internal refresh function (used by timer and public refreshAccessToken)
+// Uses deduplication to prevent race conditions when multiple callers request refresh simultaneously
 async function doRefreshAccessToken(): Promise<boolean> {
-  try {
-    // Refresh token is read from httpOnly cookie by the server
-    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
-      method: "POST",
-      credentials: "include", // Send cookies
-    });
+  // If refresh is already in progress, return the existing promise
+  // This prevents race conditions when visibility change and API 401 both trigger refresh
+  if (refreshPromise) {
+    return refreshPromise;
+  }
 
-    if (!response.ok) {
-      // 401 Unauthorized - force logout and redirect to login
-      if (response.status === 401) {
-        clearAuthState();
-        router.push("/login");
+  refreshPromise = (async () => {
+    try {
+      // Refresh token is read from httpOnly cookie by the server
+      const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: "POST",
+        credentials: "include", // Send cookies
+      });
+
+      if (!response.ok) {
+        // 401 Unauthorized - force logout and redirect to login
+        if (response.status === 401) {
+          clearAuthState();
+          router.push("/login");
+        }
+        return false;
       }
+
+      const data: RefreshResponse = await response.json();
+      accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
+      // Persist to localStorage for recovery after process restart
+      localStorage.setItem(STORAGE_KEY_TOKEN_EXPIRES, data.accessTokenExpiresAt);
+
+      return true;
+    } catch (error) {
+      console.error("Token refresh error:", error);
       return false;
     }
+  })();
 
-    const data: RefreshResponse = await response.json();
-    accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
-    // Persist to localStorage for recovery after process restart
-    localStorage.setItem(STORAGE_KEY_TOKEN_EXPIRES, data.accessTokenExpiresAt);
-
-    return true;
-  } catch (error) {
-    console.error("Token refresh error:", error);
-    return false;
+  try {
+    return await refreshPromise;
+  } finally {
+    // Clear the promise after completion so future calls can refresh again
+    refreshPromise = null;
   }
 }
 
