@@ -5,6 +5,7 @@ import { evaluateAndUpdateTags } from "../services/tagIndexer.js";
 import { meilisearchClient, IMAGES_INDEX_NAME } from "../services/meilisearch.js";
 import { authenticate } from "../middleware/auth.js";
 import { allRoles, editorsOnly } from "../middleware/roleGuard.js";
+import { verifyCsrf } from "../middleware/csrf.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -146,7 +147,7 @@ async function updateMeilisearchIndex(imageIds: string[]): Promise<void> {
 }
 
 // POST /api/images/tags - Batch add tags to multiple images (admin/user only)
-router.post("/tags", editorsOnly, async (req, res) => {
+router.post("/tags", verifyCsrf, editorsOnly, async (req, res) => {
   try {
     const { imageIds, tags } = req.body as { imageIds: string[]; tags: string[] };
 
@@ -224,7 +225,7 @@ router.post("/tags", editorsOnly, async (req, res) => {
 });
 
 // DELETE /api/images/:imageId/tags/:tagId - Remove tag from image (admin/user only)
-router.delete("/:imageId/tags/:tagId", editorsOnly, async (req, res) => {
+router.delete("/:imageId/tags/:tagId", verifyCsrf, editorsOnly, async (req, res) => {
   try {
     const { imageId, tagId } = req.params;
 
@@ -262,7 +263,7 @@ router.delete("/:imageId/tags/:tagId", editorsOnly, async (req, res) => {
 });
 
 // DELETE /api/images/:id - Delete an image (admin/user only)
-router.delete("/:id", editorsOnly, async (req, res) => {
+router.delete("/:id", verifyCsrf, editorsOnly, async (req, res) => {
   const { id } = req.params;
 
   try {

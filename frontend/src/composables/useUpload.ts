@@ -41,6 +41,7 @@
 import { ref, computed } from "vue";
 import type { UploadItem, UploadResponse } from "../types/upload";
 import { useAuth } from "./useAuth";
+import { getCsrfToken, CSRF_HEADER_NAME } from "../utils/csrf";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const MAX_CONCURRENT_UPLOADS = 3;
@@ -281,6 +282,11 @@ export function useUpload() {
 
         xhr.open("POST", `${API_BASE}/api/upload`);
         xhr.withCredentials = true;
+        // Add CSRF token header
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+          xhr.setRequestHeader(CSRF_HEADER_NAME, csrfToken);
+        }
         xhr.send(formData);
       });
     } catch (error) {

@@ -169,6 +169,7 @@ services:
       - PORT=3000
       # Authentication settings
       - AUTH_ENABLED
+      - COOKIE_SECURE
       - JWT_SECRET
       - JWT_ACCESS_TOKEN_EXPIRES
       - JWT_REFRESH_TOKEN_EXPIRES_DAYS

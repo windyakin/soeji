@@ -7,6 +7,7 @@ import type {
   RefreshResponse,
   UserRole,
 } from "../types/auth";
+import { getCsrfHeaders } from "../utils/csrf";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -370,6 +371,7 @@ export function useAuth() {
     try {
       await fetch(`${API_BASE}/api/auth/logout`, {
         method: "POST",
+        headers: getCsrfHeaders(),
         credentials: "include", // Send cookies (server will clear them)
       });
     } catch (error) {

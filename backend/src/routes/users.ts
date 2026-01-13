@@ -4,6 +4,7 @@ import { hashPassword } from "../services/password.js";
 import { revokeAllUserRefreshTokens } from "../services/jwt.js";
 import { authenticate, isAuthEnabled } from "../middleware/auth.js";
 import { adminOnly } from "../middleware/roleGuard.js";
+import { verifyCsrf } from "../middleware/csrf.js";
 import type { CreateUserRequest, UpdateUserRequest } from "../types/auth.js";
 
 export const usersRouter = Router();
@@ -40,7 +41,7 @@ usersRouter.get("/", async (_req, res) => {
 });
 
 // POST /api/users - Create new user
-usersRouter.post("/", async (req, res) => {
+usersRouter.post("/", verifyCsrf, async (req, res) => {
   try {
     const { username, password, role } = req.body as CreateUserRequest;
 
@@ -120,7 +121,7 @@ usersRouter.get("/:id", async (req, res) => {
 });
 
 // PUT /api/users/:id - Update user
-usersRouter.put("/:id", async (req, res) => {
+usersRouter.put("/:id", verifyCsrf, async (req, res) => {
   try {
     const { id } = req.params;
     const { username, password, role } = req.body as UpdateUserRequest;
@@ -199,7 +200,7 @@ usersRouter.put("/:id", async (req, res) => {
 });
 
 // DELETE /api/users/:id - Delete user
-usersRouter.delete("/:id", async (req, res) => {
+usersRouter.delete("/:id", verifyCsrf, async (req, res) => {
   try {
     const { id } = req.params;
     const currentUserId = req.user!.id;
