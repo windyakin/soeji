@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import type { CorsOptionsDelegate } from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import passport from "./config/passport.js";
@@ -15,7 +16,23 @@ import { uploadRouter } from "./routes/upload.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+
+// Dynamic CORS configuration
+const dynamicCorsOptions: CorsOptionsDelegate<express.Request> = (req, callback) => {
+  if (req.path.startsWith("/api/upload")) {
+    callback(null, {
+      origin: /^(https:\/\/novelai.net|chrome-extension:\/\/[a-z0-9]+|moz-extension:\/\/[a-z0-9\-]+)$/,
+      methods: ["GET","POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "X-Watcher-Key", "Authorization"],
+    });
+    return;
+  }
+  callback(null, {
+    origin: /https?:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?/
+  });
+};
+
+app.use(cors(dynamicCorsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
