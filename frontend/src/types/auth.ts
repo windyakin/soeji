@@ -16,6 +16,9 @@ export interface LoginRequest {
 export interface LoginResponse {
   accessTokenExpiresAt: string;
   user: AuthUser;
+  // 2FA fields (only present when totpRequired is true)
+  totpRequired?: boolean;
+  totpToken?: string;
 }
 
 // Refresh token is read from httpOnly cookie, no request body needed
@@ -54,4 +57,38 @@ export interface UserListItem {
   mustChangePassword: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// TOTP 2FA types
+export interface TotpLoginRequest {
+  totpToken: string;
+  code: string;
+  isBackupCode?: boolean;
+}
+
+export interface TotpSetupResponse {
+  secret: string;
+  qrCode: string;
+  otpauthUri: string;
+}
+
+export interface TotpVerifySetupRequest {
+  code: string;
+}
+
+export interface TotpVerifySetupResponse {
+  backupCodes: string[];
+}
+
+export interface TotpStatusResponse {
+  enabled: boolean;
+  backupCodesRemaining?: number;
+}
+
+export interface TotpDisableRequest {
+  password: string;
+}
+
+export interface TotpRegenerateBackupCodesResponse {
+  backupCodes: string[];
 }

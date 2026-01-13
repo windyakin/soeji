@@ -64,6 +64,47 @@ export interface UpdateUserRequest {
   role?: SelectableUserRole;
 }
 
+// TOTP 2FA types
+export interface TotpSetupResponse {
+  secret: string;
+  qrCode: string; // Data URL
+  otpauthUri: string;
+}
+
+export interface TotpVerifySetupRequest {
+  code: string;
+}
+
+export interface TotpVerifySetupResponse {
+  backupCodes: string[]; // Plain text codes shown once
+}
+
+export interface TotpVerifyRequest {
+  code: string;
+  isBackupCode?: boolean;
+}
+
+export interface TotpDisableRequest {
+  password: string;
+}
+
+export interface TotpStatusResponse {
+  enabled: boolean;
+  backupCodesRemaining?: number;
+}
+
+// Extended LoginResponse for 2FA
+export interface LoginResponseWithTotp extends LoginResponse {
+  totpRequired?: boolean;
+  totpToken?: string; // Temporary token for TOTP verification
+}
+
+export interface TotpLoginRequest {
+  totpToken: string;
+  code: string;
+  isBackupCode?: boolean;
+}
+
 // Extend Express Request to include authenticated user
 declare global {
   namespace Express {

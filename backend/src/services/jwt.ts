@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { randomBytes } from "crypto";
 import type { TokenPayload } from "../types/auth.js";
+import type { UserRole } from "@prisma/client";
 import { prisma } from "./database.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "development-secret-change-me";
@@ -131,4 +132,44 @@ export async function cleanupExpiredTokens(): Promise<number> {
   });
 
   return result.count;
+}
+
+// TOTP temporary token for 2FA verification
+const TOTP_TOKEN_EXPIRES = "5m";
+
+export interface TotpTokenPayload {
+  userId: string;
+  username: string;
+  role: UserRole;
+  type: "totp_pending";
+}
+
+export function generateTotpPendingToken(payload: Omit<TotpTokenPayload, "type">): {
+  token: string;
+  expiresAt: Date;
+} {
+  const tokenPayload: TotpTokenPayload = {
+    ...payload,
+    type: "totp_pending",
+  };
+
+  const token = jwt.sign(tokenPayload as object, JWT_SECRET, {
+    expiresIn: TOTP_TOKEN_EXPIRES,
+  } as jwt.SignOptions);
+
+  const expiresAt = new Date(Date.now() + parseDurationToMs(TOTP_TOKEN_EXPIRES));
+
+  return { token, expiresAt };
+}
+
+export function verifyTotpPendingToken(token: string): TotpTokenPayload | null {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as TotpTokenPayload;
+    if (payload.type !== "totp_pending") {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
 }

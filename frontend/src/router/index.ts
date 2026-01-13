@@ -5,6 +5,7 @@ import AdminPage from "../pages/AdminPage.vue";
 import LoginPage from "../pages/LoginPage.vue";
 import SetupPage from "../pages/SetupPage.vue";
 import ForceChangePasswordPage from "../pages/ForceChangePasswordPage.vue";
+import TotpVerifyPage from "../pages/TotpVerifyPage.vue";
 import { useAuth } from "../composables/useAuth";
 
 declare module "vue-router" {
@@ -33,6 +34,12 @@ const router = createRouter({
       path: "/force-change-password",
       name: "force-change-password",
       component: ForceChangePasswordPage,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: "/login/totp",
+      name: "totp-verify",
+      component: TotpVerifyPage,
       meta: { requiresAuth: false },
     },
     {

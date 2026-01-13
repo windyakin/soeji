@@ -6,6 +6,11 @@ import type {
   LoginResponse,
   RefreshResponse,
   UserRole,
+  TotpLoginRequest,
+  TotpSetupResponse,
+  TotpVerifySetupResponse,
+  TotpStatusResponse,
+  TotpRegenerateBackupCodesResponse,
 } from "../types/auth";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -27,6 +32,11 @@ const isAuthenticated = ref(false);
 const currentUser = ref<AuthUser | null>(null);
 const authInitialized = ref(false);
 const mustChangePassword = ref(false);
+
+// TOTP 2FA state
+const totpRequired = ref(false);
+const totpToken = ref<string | null>(null);
+const pendingTotpUser = ref<AuthUser | null>(null);
 
 // Token expiration time (cached from API response)
 let accessTokenExpiresAt: Date | null = null;
@@ -270,7 +280,7 @@ export function useAuth() {
   async function login(
     username: string,
     password: string
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; error?: string; totpRequired?: boolean }> {
     try {
       const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
@@ -285,6 +295,17 @@ export function useAuth() {
       }
 
       const data: LoginResponse = await response.json();
+
+      // Check if 2FA is required
+      if (data.totpRequired && data.totpToken) {
+        totpRequired.value = true;
+        totpToken.value = data.totpToken;
+        pendingTotpUser.value = data.user;
+        // Store password temporarily for potential password change flow
+        temporaryPassword = password;
+        return { success: true, totpRequired: true };
+      }
+
       const expiresAt = new Date(data.accessTokenExpiresAt);
       setAuthState(data.user, expiresAt);
 
@@ -299,6 +320,174 @@ export function useAuth() {
       return { success: true };
     } catch (error) {
       console.error("Login error:", error);
+      return { success: false, error: "Network error" };
+    }
+  }
+
+  // Verify TOTP code and complete login
+  async function verifyTotp(
+    code: string,
+    isBackupCode: boolean = false
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!totpToken.value) {
+      return { success: false, error: "No TOTP session" };
+    }
+
+    try {
+      const request: TotpLoginRequest = {
+        totpToken: totpToken.value,
+        code,
+        isBackupCode,
+      };
+
+      const response = await fetch(`${API_BASE}/api/auth/login/totp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Verification failed" };
+      }
+
+      const data: LoginResponse = await response.json();
+      const expiresAt = new Date(data.accessTokenExpiresAt);
+      setAuthState(data.user, expiresAt);
+
+      // Clear TOTP state
+      totpRequired.value = false;
+      totpToken.value = null;
+      pendingTotpUser.value = null;
+
+      // Start proactive refresh timer
+      startRefreshCheckTimer();
+
+      return { success: true };
+    } catch (error) {
+      console.error("TOTP verification error:", error);
+      return { success: false, error: "Network error" };
+    }
+  }
+
+  // Cancel TOTP verification (go back to login)
+  function cancelTotp(): void {
+    totpRequired.value = false;
+    totpToken.value = null;
+    pendingTotpUser.value = null;
+    temporaryPassword = null;
+  }
+
+  // Get TOTP status for current user
+  async function getTotpStatus(): Promise<TotpStatusResponse | null> {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/totp/status`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to get TOTP status:", error);
+      return null;
+    }
+  }
+
+  // Start TOTP setup
+  async function setupTotp(): Promise<{ success: boolean; data?: TotpSetupResponse; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/totp/setup`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Setup failed" };
+      }
+
+      const data: TotpSetupResponse = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error("TOTP setup error:", error);
+      return { success: false, error: "Network error" };
+    }
+  }
+
+  // Verify TOTP setup and enable 2FA
+  async function verifyTotpSetup(
+    code: string
+  ): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/totp/verify-setup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Verification failed" };
+      }
+
+      const data: TotpVerifySetupResponse = await response.json();
+      return { success: true, backupCodes: data.backupCodes };
+    } catch (error) {
+      console.error("TOTP verify setup error:", error);
+      return { success: false, error: "Network error" };
+    }
+  }
+
+  // Disable TOTP
+  async function disableTotp(
+    password: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/totp/disable`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Disable failed" };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("TOTP disable error:", error);
+      return { success: false, error: "Network error" };
+    }
+  }
+
+  // Regenerate backup codes
+  async function regenerateBackupCodes(
+    password: string
+  ): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/totp/regenerate-backup-codes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Regenerate failed" };
+      }
+
+      const data: TotpRegenerateBackupCodesResponse = await response.json();
+      return { success: true, backupCodes: data.backupCodes };
+    } catch (error) {
+      console.error("Regenerate backup codes error:", error);
       return { success: false, error: "Network error" };
     }
   }
@@ -420,6 +609,10 @@ export function useAuth() {
     authInitialized,
     mustChangePassword,
 
+    // TOTP state
+    totpRequired,
+    pendingTotpUser,
+
     // Computed
     isLoggedIn,
     needsSetup,
@@ -437,5 +630,14 @@ export function useAuth() {
     clearMustChangePassword,
     getTemporaryPassword,
     clearTemporaryPassword,
+
+    // TOTP methods
+    verifyTotp,
+    cancelTotp,
+    getTotpStatus,
+    setupTotp,
+    verifyTotpSetup,
+    disableTotp,
+    regenerateBackupCodes,
   };
 }

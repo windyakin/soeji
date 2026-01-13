@@ -97,6 +97,11 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  // TOTP 2FA fields
+  totpSecret      String?  // Base32 encoded secret
+  totpEnabled     Boolean  @default(false)
+  totpBackupCodes String?  // JSON array of hashed backup codes
+
   refreshTokens RefreshToken[]
 
   @@index([username])

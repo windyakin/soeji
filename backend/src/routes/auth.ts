@@ -9,16 +9,26 @@ import {
   verifyAccessToken,
   revokeRefreshToken,
   revokeAllUserRefreshTokens,
+  generateTotpPendingToken,
+  verifyTotpPendingToken,
 } from "../services/jwt.js";
+import {
+  verifyTotpCode,
+  verifyBackupCode,
+  removeBackupCode,
+} from "../services/totp.js";
 import { authenticate, authenticateAllowPasswordChange, authenticateLocal, isAuthEnabled } from "../middleware/auth.js";
 import type { Response } from "express";
 import type {
   AuthConfigResponse,
   LoginResponse,
+  LoginResponseWithTotp,
   RefreshResponse,
   SetupRequest,
   VerifySetupKeyRequest,
+  TotpLoginRequest,
 } from "../types/auth.js";
+import { totpRouter } from "./totp.js";
 
 const SETUP_KEY = process.env.SETUP_KEY;
 
@@ -197,7 +207,36 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
   try {
     const user = req.user!;
 
-    // Generate tokens (login users are always DB users with UserRole)
+    // Check if user has TOTP enabled
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { totpEnabled: true },
+    });
+
+    if (dbUser?.totpEnabled) {
+      // User has 2FA enabled - return pending token instead of full auth
+      const { token: totpToken } = generateTotpPendingToken({
+        userId: user.id,
+        username: user.username,
+        role: user.role as UserRole,
+      });
+
+      const response: LoginResponseWithTotp = {
+        accessTokenExpiresAt: "",
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          mustChangePassword: user.mustChangePassword,
+        },
+        totpRequired: true,
+        totpToken,
+      };
+
+      return res.json(response);
+    }
+
+    // No 2FA - proceed with normal login
     const { token: accessToken, expiresAt: accessTokenExpiresAt } = generateAccessToken({
       userId: user.id,
       username: user.username,
@@ -221,6 +260,98 @@ authRouter.post("/login", authenticateLocal, async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error("Failed to login:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/auth/login/totp - Verify TOTP code and complete login
+authRouter.post("/login/totp", async (req, res) => {
+  try {
+    const { totpToken, code, isBackupCode } = req.body as TotpLoginRequest;
+
+    if (!totpToken || !code) {
+      return res.status(400).json({ error: "TOTP token and code are required" });
+    }
+
+    // Verify the pending token
+    const pendingPayload = verifyTotpPendingToken(totpToken);
+    if (!pendingPayload) {
+      return res.status(401).json({ error: "Invalid or expired TOTP token" });
+    }
+
+    // Get user with TOTP data
+    const user = await prisma.user.findUnique({
+      where: { id: pendingPayload.userId },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        mustChangePassword: true,
+        totpEnabled: true,
+        totpSecret: true,
+        totpBackupCodes: true,
+      },
+    });
+
+    if (!user || !user.totpEnabled || !user.totpSecret) {
+      return res.status(401).json({ error: "TOTP is not enabled for this user" });
+    }
+
+    let isValid = false;
+
+    if (isBackupCode) {
+      // Verify backup code
+      if (!user.totpBackupCodes) {
+        return res.status(401).json({ error: "No backup codes available" });
+      }
+
+      const backupCodes = JSON.parse(user.totpBackupCodes) as string[];
+      const matchedIndex = await verifyBackupCode(code, backupCodes);
+
+      if (matchedIndex >= 0) {
+        isValid = true;
+        // Remove used backup code
+        const updatedCodes = removeBackupCode(backupCodes, matchedIndex);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { totpBackupCodes: JSON.stringify(updatedCodes) },
+        });
+        console.log(`Backup code used for user "${user.username}", ${updatedCodes.length} codes remaining`);
+      }
+    } else {
+      // Verify TOTP code
+      isValid = verifyTotpCode(user.totpSecret, code, user.username);
+    }
+
+    if (!isValid) {
+      console.warn(`TOTP verification failed for user "${user.username}"`);
+      return res.status(401).json({ error: "Invalid verification code" });
+    }
+
+    // TOTP verified - generate full tokens
+    const { token: accessToken, expiresAt: accessTokenExpiresAt } = generateAccessToken({
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+    });
+    const { token: refreshToken, expiresAt: refreshTokenExpiresAt } = await generateRefreshToken(user.id);
+
+    // Set auth cookies
+    setAuthCookies(res, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt);
+
+    const response: LoginResponse = {
+      accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword,
+      },
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Failed to verify TOTP:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -392,3 +523,6 @@ authRouter.post("/change-password", authenticateAllowPasswordChange, async (req,
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Mount TOTP routes under /api/auth/totp
+authRouter.use("/totp", totpRouter);

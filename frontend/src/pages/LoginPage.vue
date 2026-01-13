@@ -39,6 +39,17 @@ async function handleSubmit() {
   isLoading.value = false
 
   if (result.success) {
+    // Check if 2FA is required
+    if (result.totpRequired) {
+      // Redirect to TOTP verification page, preserving the original redirect
+      const redirect = router.currentRoute.value.query.redirect as string
+      router.push({
+        name: 'totp-verify',
+        query: redirect ? { redirect } : undefined,
+      })
+      return
+    }
+
     toast.add({
       severity: 'success',
       summary: 'Login successful',

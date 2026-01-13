@@ -2,10 +2,14 @@
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import AccountSettings from '../components/AccountSettings.vue'
+import TotpSetup from '../components/TotpSetup.vue'
 import PinSettings from '../components/PinSettings.vue'
 import FullscreenSettings from '../components/FullscreenSettings.vue'
 import PwaInstallSettings from '../components/PwaInstallSettings.vue'
 import VersionInfo from '../components/VersionInfo.vue'
+import { useAuth } from '../composables/useAuth'
+
+const { authEnabled } = useAuth()
 
 const router = useRouter()
 
@@ -32,6 +36,7 @@ function goBack() {
 
       <div class="flex flex-column gap-4 settings-content">
         <AccountSettings />
+        <TotpSetup v-if="authEnabled" />
         <PinSettings />
         <FullscreenSettings />
         <PwaInstallSettings />
