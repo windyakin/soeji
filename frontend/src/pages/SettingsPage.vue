@@ -30,7 +30,7 @@ function goBack() {
         </div>
       </header>
 
-      <div class="flex flex-column gap-6 settings-content">
+      <div class="flex flex-column gap-4 settings-content">
         <AccountSettings />
         <PinSettings />
         <FullscreenSettings />
