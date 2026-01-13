@@ -4,8 +4,7 @@
   "version": "1.0.1",
   "description": "Upload NAI generated images directly to your soeji library",
   "permissions": [
-    "storage",
-    "activeTab"
+    "storage"
   ],
   "host_permissions": [
     "https://novelai.net/*"
