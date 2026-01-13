@@ -107,6 +107,8 @@ export function authenticateLocal(
         return next(err);
       }
       if (!user) {
+        const username = req.body?.username || "(empty)";
+        console.warn(`Login failed for user "${username}": ${info?.message || "Invalid credentials"}`);
         return res.status(401).json({ error: info?.message || "Invalid credentials" });
       }
       req.user = user;
