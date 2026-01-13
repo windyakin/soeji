@@ -26,6 +26,15 @@ const upload = multer({
 router.use(authenticateUpload);
 
 /**
+ * GET /api/upload/test
+ * Test endpoint to verify API key authentication
+ * Used by browser extension to validate configuration
+ */
+router.get("/test", (_req, res) => {
+  res.json({ success: true, message: "Authentication successful" });
+});
+
+/**
  * POST /api/upload
  * Upload a single PNG image
  *
