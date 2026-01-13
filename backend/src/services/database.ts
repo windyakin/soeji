@@ -4,32 +4,38 @@ import type { ParsedPromptData } from "../types/prompt.js";
 export const prisma = new PrismaClient();
 
 /**
- * Find or create a tag, handling concurrent creation race conditions.
- * Uses upsert with fallback to findUnique on unique constraint violation.
+ * Find or create a tag outside of a transaction, handling concurrent creation race conditions.
+ * Retries on unique constraint violation to fetch the tag created by another process.
  */
-async function findOrCreateTag(
-  tx: Prisma.TransactionClient,
-  name: string,
-  category: string | null
-) {
-  try {
-    return await tx.tag.upsert({
-      where: { name },
-      update: {},
-      create: { name, category },
-    });
-  } catch (error) {
-    // P2002: Unique constraint violation - another transaction created the tag
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      const existingTag = await tx.tag.findUnique({ where: { name } });
-      if (existingTag) {
-        return existingTag;
+async function findOrCreateTag(name: string, category: string | null, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    // First, try to find existing tag
+    const existingTag = await prisma.tag.findUnique({ where: { name } });
+    if (existingTag) {
+      return existingTag;
+    }
+
+    // Try to create the tag
+    try {
+      return await prisma.tag.create({
+        data: { name, category },
+      });
+    } catch (error) {
+      // P2002: Unique constraint violation - another process created the tag
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        // Retry - the tag should now exist
+        continue;
       }
-      // If still not found, rethrow
       throw error;
     }
-    throw error;
   }
+
+  // Final attempt to find the tag after all retries
+  const finalTag = await prisma.tag.findUnique({ where: { name } });
+  if (finalTag) {
+    return finalTag;
+  }
+  throw new Error(`Failed to find or create tag "${name}" after ${maxRetries} retries`);
 }
 
 export interface CreateImageInput {
@@ -59,6 +65,20 @@ export interface CreateImageResult {
 
 export async function createImageWithMetadata(input: CreateImageInput): Promise<CreateImageResult> {
   const { filename, s3Key, fileHash, width, height, hasMetadataFile, hasLosslessWebp, promptData } = input;
+
+  // Pre-create all tags outside the transaction to avoid conflicts
+  const tagMap = new Map<string, { id: string; weight: number; isNegative: boolean; source: string }>();
+  for (const weightedTag of promptData.tags) {
+    const colonIndex = weightedTag.name.indexOf(":");
+    const category = colonIndex > 0 ? weightedTag.name.slice(0, colonIndex) : null;
+    const tag = await findOrCreateTag(weightedTag.name, category);
+    tagMap.set(weightedTag.name, {
+      id: tag.id,
+      weight: weightedTag.weight,
+      isNegative: weightedTag.isNegative,
+      source: weightedTag.source,
+    });
+  }
 
   return prisma.$transaction(async (tx) => {
     // Create image record
@@ -90,27 +110,19 @@ export async function createImageWithMetadata(input: CreateImageInput): Promise<
       },
     });
 
-    // Create tags and link them with weight information
+    // Link tags to image (tags already created outside transaction)
     const tagIds: string[] = [];
-    for (const weightedTag of promptData.tags) {
-      // Determine category from tag format (e.g., "artist:name" -> category: "artist")
-      const colonIndex = weightedTag.name.indexOf(":");
-      const category = colonIndex > 0 ? weightedTag.name.slice(0, colonIndex) : null;
-
-      // Use findOrCreateTag to handle concurrent uploads with same tags
-      const tag = await findOrCreateTag(tx, weightedTag.name, category);
-
+    for (const [, tagData] of tagMap) {
       await tx.imageTag.create({
         data: {
           imageId: image.id,
-          tagId: tag.id,
-          weight: weightedTag.weight,
-          isNegative: weightedTag.isNegative,
-          source: weightedTag.source,
+          tagId: tagData.id,
+          weight: tagData.weight,
+          isNegative: tagData.isNegative,
+          source: tagData.source,
         },
       });
-
-      tagIds.push(tag.id);
+      tagIds.push(tagData.id);
     }
 
     return { image, tagIds };
