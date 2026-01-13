@@ -6,6 +6,8 @@ import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
+import Tag from 'primevue/tag'
+import SettingsCard from './SettingsCard.vue'
 import { useAuth } from '../composables/useAuth'
 import type { TotpSetupResponse, TotpStatusResponse } from '../types/auth'
 
@@ -208,297 +210,279 @@ loadStatus()
 </script>
 
 <template>
-  <div class="totp-setup">
-    <div class="totp-header">
-      <h3>Two-Factor Authentication</h3>
-      <p class="totp-description">
-        Add an extra layer of security to your account by requiring a verification code from your authenticator app.
-      </p>
-    </div>
-
-    <div v-if="isLoading && !totpStatus" class="totp-loading">
-      <i class="pi pi-spin pi-spinner" />
-      Loading...
-    </div>
-
-    <div v-else-if="isTotpEnabled" class="totp-enabled">
-      <Message severity="success" :closable="false">
-        <template #icon>
-          <i class="pi pi-shield" />
-        </template>
-        Two-factor authentication is enabled
-      </Message>
-
-      <div v-if="totpStatus?.backupCodesRemaining !== undefined" class="backup-codes-info">
-        <span class="backup-codes-count">
-          {{ totpStatus.backupCodesRemaining }} backup codes remaining
-        </span>
-        <Button
-          label="Regenerate"
-          variant="link"
-          size="small"
-          @click="regenerateDialogVisible = true"
-        />
-      </div>
-
-      <div class="totp-actions">
-        <Button
-          label="Disable 2FA"
-          severity="danger"
-          variant="outlined"
-          @click="disableDialogVisible = true"
-        />
-      </div>
-    </div>
-
-    <div v-else class="totp-disabled">
-      <Message severity="warn" :closable="false">
-        <template #icon>
-          <i class="pi pi-exclamation-triangle" />
-        </template>
-        Two-factor authentication is not enabled
-      </Message>
-
-      <div class="totp-actions">
-        <Button
-          label="Enable 2FA"
-          severity="success"
-          @click="handleStartSetup"
-          :loading="isLoading"
-        />
-      </div>
-    </div>
-
-    <!-- Setup Dialog -->
-    <Dialog
-      v-model:visible="setupDialogVisible"
-      header="Set up Two-Factor Authentication"
-      :modal="true"
-      :closable="false"
-      :style="{ width: '28rem' }"
-    >
-      <div v-if="setupData" class="setup-content">
-        <p class="setup-instruction">
-          Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
-        </p>
-
-        <div class="qr-code-container">
-          <img :src="setupData.qrCode" alt="QR Code" class="qr-code" />
-        </div>
-
-        <details class="manual-entry">
-          <summary>Can't scan? Enter manually</summary>
-          <div class="manual-entry-content">
-            <code class="secret-code">{{ setupData.secret }}</code>
+  <SettingsCard header="Two-Factor Authentication">
+    <!-- 2FA Status -->
+    <div class="settings-item">
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-shield item-icon"></i>
+          <div class="item-text">
+            <span class="item-label">2FA Protection</span>
+            <span class="item-description">Require code from authenticator app</span>
           </div>
-        </details>
-
-        <div class="verification-section">
-          <label for="verification-code">Enter the 6-digit code from your app</label>
-          <InputText
-            id="verification-code"
-            v-model="verificationCode"
-            placeholder="000000"
-            :disabled="isLoading"
-            fluid
-          />
-          <small v-if="setupError" class="error-text">{{ setupError }}</small>
         </div>
-      </div>
-
-      <template #footer>
-        <Button
-          label="Cancel"
+        <Tag
+          v-if="isTotpEnabled"
+          severity="success"
+          value="On"
+        />
+        <Tag
+          v-else
           severity="secondary"
-          @click="handleCancelSetup"
-          :disabled="isLoading"
+          value="Off"
         />
-        <Button
-          label="Verify and Enable"
-          @click="handleVerifySetup"
-          :loading="isLoading"
-        />
-      </template>
-    </Dialog>
+      </div>
+    </div>
 
-    <!-- Backup Codes Dialog -->
-    <Dialog
-      v-model:visible="backupCodesDialogVisible"
-      header="Backup Codes"
-      :modal="true"
-      :closable="false"
-      :style="{ width: '28rem' }"
+    <!-- Enable 2FA (when not enabled) -->
+    <button
+      v-if="!isTotpEnabled"
+      class="settings-item clickable"
+      :disabled="isLoading"
+      @click="handleStartSetup"
     >
-      <div class="backup-codes-content">
-        <Message severity="warn" :closable="false">
-          Save these codes in a safe place. Each code can only be used once.
-        </Message>
-
-        <div class="backup-codes-list">
-          <code v-for="code in backupCodes" :key="code" class="backup-code">
-            {{ code }}
-          </code>
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-plus item-icon"></i>
+          <span class="item-label">Enable 2FA</span>
         </div>
-
-        <Button
-          label="Copy all codes"
-          icon="pi pi-copy"
-          severity="secondary"
-          @click="copyBackupCodes"
-          class="copy-button"
-        />
+        <i class="pi pi-chevron-right item-chevron"></i>
       </div>
+    </button>
 
-      <template #footer>
-        <Button
-          label="I've saved these codes"
-          @click="handleCloseBackupCodes"
-        />
-      </template>
-    </Dialog>
-
-    <!-- Disable Dialog -->
-    <Dialog
-      v-model:visible="disableDialogVisible"
-      header="Disable Two-Factor Authentication"
-      :modal="true"
-      :closable="!isLoading"
-      :style="{ width: '24rem' }"
+    <!-- Backup codes remaining (when enabled) -->
+    <button
+      v-if="isTotpEnabled"
+      class="settings-item clickable"
+      @click="regenerateDialogVisible = true"
     >
-      <div class="disable-content">
-        <p>Enter your password to disable two-factor authentication.</p>
-
-        <div class="field">
-          <label for="disable-password">Password</label>
-          <Password
-            id="disable-password"
-            v-model="disablePassword"
-            :feedback="false"
-            toggleMask
-            :disabled="isLoading"
-            fluid
-          />
-          <small v-if="disableError" class="error-text">{{ disableError }}</small>
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-key item-icon"></i>
+          <div class="item-text">
+            <span class="item-label">Backup Codes</span>
+            <span class="item-description">{{ totpStatus?.backupCodesRemaining ?? 0 }} codes remaining</span>
+          </div>
         </div>
+        <i class="pi pi-chevron-right item-chevron"></i>
       </div>
+    </button>
 
-      <template #footer>
-        <Button
-          label="Cancel"
-          severity="secondary"
-          @click="handleCancelDisable"
-          :disabled="isLoading"
-        />
-        <Button
-          label="Disable 2FA"
-          severity="danger"
-          @click="handleDisable"
-          :loading="isLoading"
-        />
-      </template>
-    </Dialog>
-
-    <!-- Regenerate Backup Codes Dialog -->
-    <Dialog
-      v-model:visible="regenerateDialogVisible"
-      header="Regenerate Backup Codes"
-      :modal="true"
-      :closable="!isLoading"
-      :style="{ width: '24rem' }"
+    <!-- Disable 2FA (when enabled) -->
+    <button
+      v-if="isTotpEnabled"
+      class="settings-item clickable danger"
+      @click="disableDialogVisible = true"
     >
-      <div class="regenerate-content">
-        <Message severity="warn" :closable="false">
-          This will invalidate all existing backup codes.
-        </Message>
-
-        <div class="field">
-          <label for="regenerate-password">Password</label>
-          <Password
-            id="regenerate-password"
-            v-model="regeneratePassword"
-            :feedback="false"
-            toggleMask
-            :disabled="isLoading"
-            fluid
-          />
-          <small v-if="regenerateError" class="error-text">{{ regenerateError }}</small>
+      <div class="item-content">
+        <div class="item-left">
+          <i class="pi pi-times item-icon"></i>
+          <span class="item-label">Disable 2FA</span>
         </div>
+        <i class="pi pi-chevron-right item-chevron"></i>
+      </div>
+    </button>
+  </SettingsCard>
+
+  <!-- Setup Dialog -->
+  <Dialog
+    v-model:visible="setupDialogVisible"
+    modal
+    header="Set up 2FA"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :closable="!isLoading"
+    @update:visible="handleCancelSetup"
+  >
+    <div v-if="setupData" class="dialog-content">
+      <p class="info-text">
+        Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+      </p>
+
+      <div class="qr-code-container">
+        <img :src="setupData.qrCode" alt="QR Code" class="qr-code" />
       </div>
 
-      <template #footer>
-        <Button
-          label="Cancel"
-          severity="secondary"
-          @click="handleCancelRegenerate"
+      <details class="manual-entry">
+        <summary>Can't scan? Enter manually</summary>
+        <div class="manual-entry-content">
+          <code class="secret-code">{{ setupData.secret }}</code>
+        </div>
+      </details>
+
+      <Message v-if="setupError" severity="error" :closable="false">{{ setupError }}</Message>
+
+      <div class="input-group">
+        <label for="verification-code">Enter the 6-digit code from your app</label>
+        <InputText
+          id="verification-code"
+          v-model="verificationCode"
+          placeholder="000000"
           :disabled="isLoading"
+          fluid
         />
-        <Button
-          label="Regenerate"
-          @click="handleRegenerateBackupCodes"
-          :loading="isLoading"
+      </div>
+    </div>
+
+    <template #footer>
+      <Button
+        label="Cancel"
+        text
+        :disabled="isLoading"
+        @click="handleCancelSetup"
+      />
+      <Button
+        label="Verify and Enable"
+        icon="pi pi-check"
+        :loading="isLoading"
+        @click="handleVerifySetup"
+      />
+    </template>
+  </Dialog>
+
+  <!-- Backup Codes Dialog -->
+  <Dialog
+    v-model:visible="backupCodesDialogVisible"
+    modal
+    header="Backup Codes"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :closable="false"
+  >
+    <div class="dialog-content">
+      <Message severity="warn" :closable="false">
+        Save these codes in a safe place. Each code can only be used once.
+      </Message>
+
+      <div class="backup-codes-list">
+        <code v-for="code in backupCodes" :key="code" class="backup-code">
+          {{ code }}
+        </code>
+      </div>
+
+      <Button
+        label="Copy all codes"
+        icon="pi pi-copy"
+        text
+        @click="copyBackupCodes"
+        class="copy-button"
+      />
+    </div>
+
+    <template #footer>
+      <Button
+        label="I've saved these codes"
+        @click="handleCloseBackupCodes"
+      />
+    </template>
+  </Dialog>
+
+  <!-- Disable Dialog -->
+  <Dialog
+    v-model:visible="disableDialogVisible"
+    modal
+    header="Disable 2FA"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :closable="!isLoading"
+    @update:visible="handleCancelDisable"
+  >
+    <div class="dialog-content">
+      <p class="warning-text">
+        Enter your password to disable two-factor authentication.
+      </p>
+
+      <Message v-if="disableError" severity="error" :closable="false">{{ disableError }}</Message>
+
+      <div class="input-group">
+        <label for="disable-password">Password</label>
+        <Password
+          id="disable-password"
+          v-model="disablePassword"
+          :feedback="false"
+          toggleMask
+          :disabled="isLoading"
+          fluid
         />
-      </template>
-    </Dialog>
-  </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <Button
+        label="Cancel"
+        text
+        :disabled="isLoading"
+        @click="handleCancelDisable"
+      />
+      <Button
+        label="Disable"
+        icon="pi pi-times"
+        severity="danger"
+        :loading="isLoading"
+        @click="handleDisable"
+      />
+    </template>
+  </Dialog>
+
+  <!-- Regenerate Backup Codes Dialog -->
+  <Dialog
+    v-model:visible="regenerateDialogVisible"
+    modal
+    header="Regenerate Backup Codes"
+    :style="{ width: '400px' }"
+    :breakpoints="{ '480px': '90vw' }"
+    :closable="!isLoading"
+    @update:visible="handleCancelRegenerate"
+  >
+    <div class="dialog-content">
+      <Message severity="warn" :closable="false">
+        This will invalidate all existing backup codes.
+      </Message>
+
+      <Message v-if="regenerateError" severity="error" :closable="false">{{ regenerateError }}</Message>
+
+      <div class="input-group">
+        <label for="regenerate-password">Password</label>
+        <Password
+          id="regenerate-password"
+          v-model="regeneratePassword"
+          :feedback="false"
+          toggleMask
+          :disabled="isLoading"
+          fluid
+        />
+      </div>
+    </div>
+
+    <template #footer>
+      <Button
+        label="Cancel"
+        text
+        :disabled="isLoading"
+        @click="handleCancelRegenerate"
+      />
+      <Button
+        label="Regenerate"
+        icon="pi pi-refresh"
+        :loading="isLoading"
+        @click="handleRegenerateBackupCodes"
+      />
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
-.totp-setup {
-  padding: 1rem 0;
-}
-
-.totp-header h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.125rem;
-}
-
-.totp-description {
-  color: var(--p-text-muted-color);
-  font-size: 0.875rem;
-  margin: 0 0 1rem;
-}
-
-.totp-loading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--p-text-muted-color);
-}
-
-.totp-enabled,
-.totp-disabled {
+.dialog-content {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.backup-codes-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.backup-codes-count {
+.info-text,
+.warning-text {
   color: var(--p-text-muted-color);
-}
-
-.totp-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Setup dialog styles */
-.setup-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.setup-instruction {
   margin: 0;
   text-align: center;
-  color: var(--p-text-muted-color);
 }
 
 .qr-code-container {
@@ -534,21 +518,16 @@ loadStatus()
   font-size: 0.8rem;
 }
 
-.verification-section {
+.input-group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.verification-section label {
+.input-group label {
+  font-size: 0.875rem;
   font-weight: 500;
-}
-
-/* Backup codes dialog styles */
-.backup-codes-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  color: var(--p-text-color);
 }
 
 .backup-codes-list {
@@ -561,8 +540,8 @@ loadStatus()
 }
 
 .backup-code {
-  font-family: monospace;
-  font-size: 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875rem;
   padding: 0.25rem 0.5rem;
   background: var(--p-surface-0);
   border-radius: 4px;
@@ -571,20 +550,5 @@ loadStatus()
 
 .copy-button {
   align-self: center;
-}
-
-/* Common styles */
-.error-text {
-  color: var(--p-red-500);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.field label {
-  font-weight: 500;
 }
 </style>
