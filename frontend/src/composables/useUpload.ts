@@ -69,7 +69,7 @@ export function useUpload() {
   const completedCount = computed(
     () =>
       queue.value.filter(
-        (item) => item.status === "success" || item.status === "duplicate"
+        (item) => item.status === "success" || item.status === "duplicate" || item.status === "error"
       ).length
   );
 

@@ -10,8 +10,9 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
-// Storage key for user info only (tokens are in httpOnly cookies)
+// Storage keys (tokens are in httpOnly cookies, only metadata stored locally)
 const STORAGE_KEY_USER = "soeji-auth-user";
+const STORAGE_KEY_TOKEN_EXPIRES = "soeji-auth-token-expires";
 
 // Token refresh check interval (every 30 seconds)
 const TOKEN_CHECK_INTERVAL_MS = 30 * 1000;
@@ -42,11 +43,16 @@ async function checkAndRefreshToken(): Promise<void> {
     return;
   }
 
-  if (accessTokenExpiresAt) {
-    const remainingMs = accessTokenExpiresAt.getTime() - Date.now();
-    if (remainingMs < TOKEN_REFRESH_THRESHOLD_MS) {
-      await doRefreshAccessToken();
-    }
+  // If accessTokenExpiresAt is not available (e.g., after process restart),
+  // attempt refresh to ensure we have a valid token
+  if (!accessTokenExpiresAt) {
+    await doRefreshAccessToken();
+    return;
+  }
+
+  const remainingMs = accessTokenExpiresAt.getTime() - Date.now();
+  if (remainingMs < TOKEN_REFRESH_THRESHOLD_MS) {
+    await doRefreshAccessToken();
   }
 }
 
@@ -98,6 +104,8 @@ async function doRefreshAccessToken(): Promise<boolean> {
 
     const data: RefreshResponse = await response.json();
     accessTokenExpiresAt = new Date(data.accessTokenExpiresAt);
+    // Persist to localStorage for recovery after process restart
+    localStorage.setItem(STORAGE_KEY_TOKEN_EXPIRES, data.accessTokenExpiresAt);
 
     return true;
   } catch (error) {
@@ -109,6 +117,7 @@ async function doRefreshAccessToken(): Promise<boolean> {
 // Load stored user on initialization
 function loadStoredUser(): void {
   const storedUser = localStorage.getItem(STORAGE_KEY_USER);
+  const storedExpires = localStorage.getItem(STORAGE_KEY_TOKEN_EXPIRES);
 
   if (storedUser) {
     try {
@@ -116,6 +125,11 @@ function loadStoredUser(): void {
       currentUser.value = user;
       isAuthenticated.value = true;
       mustChangePassword.value = user.mustChangePassword || false;
+
+      // Restore token expiration time if available
+      if (storedExpires) {
+        accessTokenExpiresAt = new Date(storedExpires);
+      }
     } catch {
       clearAuthState();
     }
@@ -125,6 +139,7 @@ function loadStoredUser(): void {
 function clearAuthState(): void {
   stopRefreshCheckTimer();
   localStorage.removeItem(STORAGE_KEY_USER);
+  localStorage.removeItem(STORAGE_KEY_TOKEN_EXPIRES);
   currentUser.value = null;
   isAuthenticated.value = false;
   mustChangePassword.value = false;
@@ -134,6 +149,7 @@ function clearAuthState(): void {
 
 function setAuthState(user: AuthUser, expiresAt: Date): void {
   localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+  localStorage.setItem(STORAGE_KEY_TOKEN_EXPIRES, expiresAt.toISOString());
   currentUser.value = user;
   isAuthenticated.value = true;
   mustChangePassword.value = user.mustChangePassword || false;

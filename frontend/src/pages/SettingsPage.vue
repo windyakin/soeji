@@ -4,6 +4,7 @@ import Button from 'primevue/button'
 import AccountSettings from '../components/AccountSettings.vue'
 import PinSettings from '../components/PinSettings.vue'
 import FullscreenSettings from '../components/FullscreenSettings.vue'
+import PwaInstallSettings from '../components/PwaInstallSettings.vue'
 import VersionInfo from '../components/VersionInfo.vue'
 
 const router = useRouter()
@@ -29,10 +30,11 @@ function goBack() {
         </div>
       </header>
 
-      <div class="flex flex-column gap-6 settings-content">
+      <div class="flex flex-column gap-4 settings-content">
         <AccountSettings />
         <PinSettings />
         <FullscreenSettings />
+        <PwaInstallSettings />
         <VersionInfo />
       </div>
     </div>

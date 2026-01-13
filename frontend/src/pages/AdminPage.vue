@@ -26,7 +26,7 @@ function goBack() {
         </div>
       </header>
 
-      <div class="flex flex-column gap-6 admin-content">
+      <div class="flex flex-column gap-4 admin-content">
         <UserManagement />
       </div>
     </div>

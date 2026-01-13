@@ -8,7 +8,12 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["soeji.svg"],
+      includeAssets: [
+        "soeji.svg",
+        "apple-touch-icon-180x180.png",
+        "apple-touch-icon-152x152.png",
+        "apple-touch-icon-120x120.png",
+      ],
       // devOptions: {
       //   enabled: true,
       // },
@@ -24,7 +29,19 @@ export default defineConfig({
             src: "/pwa-192x192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/pwa-192x192.png",
+            sizes: "192x192",
+            type: "image/png",
             purpose: "maskable",
+          },
+          {
+            src: "/pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any",
           },
           {
             src: "/pwa-512x512.png",
@@ -33,8 +50,8 @@ export default defineConfig({
             purpose: "maskable",
           },
           {
-            src: "/pwa-512x512.png",
-            sizes: "512x512",
+            src: "/apple-touch-icon-180x180.png",
+            sizes: "180x180",
             type: "image/png",
             purpose: "any",
           },
