@@ -11,6 +11,12 @@ import {
   revokeAllUserRefreshTokens,
 } from "../services/jwt.js";
 import { authenticate, authenticateAllowPasswordChange, authenticateLocal, isAuthEnabled } from "../middleware/auth.js";
+import {
+  generateCsrfToken,
+  setCsrfCookie,
+  clearCsrfCookie,
+  verifyCsrf,
+} from "../middleware/csrf.js";
 import type { Response } from "express";
 import type {
   AuthConfigResponse,
@@ -22,11 +28,14 @@ import type {
 
 const SETUP_KEY = process.env.SETUP_KEY;
 
+// Cookie security: use secure cookies in production (HTTPS required)
+const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+
 // Cookie names
 const ACCESS_TOKEN_COOKIE = "soeji_access_token";
 const REFRESH_TOKEN_COOKIE = "soeji_refresh_token";
 
-// Helper function to set auth cookies
+// Helper function to set auth cookies (including CSRF token)
 function setAuthCookies(
   res: Response,
   accessToken: string,
@@ -37,6 +46,7 @@ function setAuthCookies(
   // Access token cookie (short-lived, used for API and CDN auth)
   res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
     httpOnly: true,
+    secure: COOKIE_SECURE,
     sameSite: "strict",
     expires: accessTokenExpiresAt,
     path: "/",
@@ -45,24 +55,32 @@ function setAuthCookies(
   // Refresh token cookie (long-lived, used only for /api/auth/refresh)
   res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
     httpOnly: true,
+    secure: COOKIE_SECURE,
     sameSite: "strict",
     expires: refreshTokenExpiresAt,
     path: "/api/auth", // Restrict to auth endpoints only
   });
+
+  // CSRF token cookie (regenerated on each login/refresh)
+  const csrfToken = generateCsrfToken();
+  setCsrfCookie(res, csrfToken);
 }
 
-// Helper function to clear auth cookies
+// Helper function to clear auth cookies (including CSRF token)
 function clearAuthCookies(res: Response): void {
   res.clearCookie(ACCESS_TOKEN_COOKIE, {
     httpOnly: true,
+    secure: COOKIE_SECURE,
     sameSite: "strict",
     path: "/",
   });
   res.clearCookie(REFRESH_TOKEN_COOKIE, {
     httpOnly: true,
+    secure: COOKIE_SECURE,
     sameSite: "strict",
     path: "/api/auth",
   });
+  clearCsrfCookie(res);
 }
 
 export const authRouter = Router();
@@ -276,7 +294,7 @@ authRouter.post("/refresh", async (req, res) => {
 });
 
 // POST /api/auth/logout - Logout (revoke refresh token, allows mustChangePassword users)
-authRouter.post("/logout", authenticateAllowPasswordChange, async (req, res) => {
+authRouter.post("/logout", verifyCsrf, authenticateAllowPasswordChange, async (req, res) => {
   try {
     // Get refresh token from cookie
     const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
@@ -344,7 +362,7 @@ authRouter.get("/verify", (req, res) => {
 });
 
 // POST /api/auth/change-password - Change own password (allows mustChangePassword users)
-authRouter.post("/change-password", authenticateAllowPasswordChange, async (req, res) => {
+authRouter.post("/change-password", verifyCsrf, authenticateAllowPasswordChange, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user!.id;
