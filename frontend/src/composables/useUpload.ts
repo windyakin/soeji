@@ -38,9 +38,17 @@
  * | アイテム削除（完了済み） | 変化なし             | 変化なし                 |
  * | 全アップロード完了       | = 0 にリセット       | = 0 にリセット           |
  */
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import type { UploadItem, UploadResponse } from "../types/upload";
 import { useAuth } from "./useAuth";
+
+// beforeunload event handler
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  event.preventDefault();
+  // Modern browsers ignore custom messages, but we need to set returnValue
+  event.returnValue = "";
+  return "";
+}
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const MAX_CONCURRENT_UPLOADS = 3;
@@ -54,6 +62,27 @@ const onCompleteCallbacks: Set<() => void> = new Set();
 // Session-based progress tracking (see documentation above)
 const sessionTotalItems = ref(0);
 const sessionCompletedProgress = ref(0);
+
+// Track if beforeunload listener is registered (singleton)
+let beforeUnloadRegistered = false;
+
+// Computed for checking if upload is in progress (used for beforeunload)
+const isUploadingGlobal = computed(() => {
+  const uploadingCount = queue.value.filter((item) => item.status === "uploading").length;
+  const pendingCount = queue.value.filter((item) => item.status === "pending").length;
+  return uploadingCount > 0 || pendingCount > 0;
+});
+
+// Watch for upload state changes and manage beforeunload listener
+watch(isUploadingGlobal, (uploading) => {
+  if (uploading && !beforeUnloadRegistered) {
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    beforeUnloadRegistered = true;
+  } else if (!uploading && beforeUnloadRegistered) {
+    window.removeEventListener("beforeunload", handleBeforeUnload);
+    beforeUnloadRegistered = false;
+  }
+}, { immediate: true });
 
 export function useUpload() {
   const { refreshAccessToken, authEnabled } = useAuth();
