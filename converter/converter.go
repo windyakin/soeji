@@ -4,19 +4,22 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/jpeg"
 	_ "image/gif"
-	_ "image/jpeg"
 	_ "image/png"
 
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
+	"github.com/gen2brain/avif"
 )
 
 type OutputFormat int
 
 const (
 	OutputFormatPNG OutputFormat = iota
+	OutputFormatAVIF
 	OutputFormatWebP
+	OutputFormatJPEG
 )
 
 type FitMode int
@@ -153,11 +156,31 @@ func encodeImage(img image.Image, format OutputFormat, quality int) ([]byte, str
 		}
 		return buf.Bytes(), "image/png", nil
 
+	case OutputFormatAVIF:
+		// gen2brain/avif Quality: 0-100, higher is better (100 = lossless)
+		// Use YCbCrSubsampleRatio444 to preserve color accuracy
+		opts := avif.Options{
+			Quality:           quality,
+			QualityAlpha:      quality,
+			Speed:             6,
+			ChromaSubsampling: image.YCbCrSubsampleRatio444, // Full chroma for better color
+		}
+		if err := avif.Encode(&buf, img, opts); err != nil {
+			return nil, "", fmt.Errorf("failed to encode AVIF: %w", err)
+		}
+		return buf.Bytes(), "image/avif", nil
+
 	case OutputFormatWebP:
 		if err := webp.Encode(&buf, img, &webp.Options{Quality: float32(quality)}); err != nil {
 			return nil, "", fmt.Errorf("failed to encode WebP: %w", err)
 		}
 		return buf.Bytes(), "image/webp", nil
+
+	case OutputFormatJPEG:
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+			return nil, "", fmt.Errorf("failed to encode JPEG: %w", err)
+		}
+		return buf.Bytes(), "image/jpeg", nil
 
 	default:
 		return nil, "", fmt.Errorf("unsupported output format")
