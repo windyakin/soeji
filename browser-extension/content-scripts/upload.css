@@ -12,9 +12,22 @@
   position: relative;
 }
 
-.soeji-upload-btn svg {
+/* Icon via CSS background-image (Base64 SVG) */
+.soeji-upload-btn::before {
+  content: '';
+  display: block;
   width: 16px;
   height: 16px;
+  /* Upload icon */
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjEgMTV2NGEyIDIgMCAwIDEtMiAySDVhMiAyIDAgMCAxLTItMnYtNCIvPjxwb2x5bGluZSBwb2ludHM9IjE3IDggMTIzIDcgOCIvPjxsaW5lIHgxPSIxMiIgeTE9IjMiIHgyPSIxMiIgeTI9IjE1Ii8+PC9zdmc+Cg==');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Dim icon for already uploaded images */
+.soeji-upload-btn.soeji-uploaded::before {
+  opacity: 0.4;
 }
 
 /* Status Badge - positioned at top-right of button */
@@ -40,28 +53,18 @@
   display: none;
 }
 
+/* Queued state - gray */
+.soeji-badge-queued {
+  background-color: #6b7280;
+}
+
 /* Uploading state - blue with spinner */
 .soeji-badge-uploading {
   background-color: #3b82f6;
   animation: soeji-pulse 1s infinite;
 }
 
-/* Success state - green */
-.soeji-badge-success {
-  background-color: #22c55e;
-}
-
-/* Duplicate state - yellow/amber */
-.soeji-badge-duplicate {
-  background-color: #eab308;
-}
-
-/* Error state - red */
-.soeji-badge-error {
-  background-color: #ef4444;
-}
-
-/* Spinner inside badge */
+/* Spinner element inside badge (added via appendChild) */
 .soeji-spinner {
   display: block;
   width: 8px;
@@ -70,6 +73,40 @@
   border-top-color: white;
   border-radius: 50%;
   animation: soeji-spin 0.6s linear infinite;
+}
+
+/* Success state - green with checkmark icon */
+.soeji-badge-success {
+  background-color: #22c55e;
+}
+
+.soeji-badge-success::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  /* Checkmark icon (white stroke) */
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cG9seWxpbmUgcG9pbnRzPSIyMCA2IDkgMTcgNCAxMiIvPjwvc3ZnPg==');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Error state - red with exclamation icon */
+.soeji-badge-error {
+  background-color: #ef4444;
+}
+
+.soeji-badge-error::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  /* Exclamation icon (white stroke) */
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48bGluZSB4MT0iMTIiIHkxPSI4IiB4Mj0iMTIiIHkyPSIxMiIvPjxsaW5lIHgxPSIxMiIgeTE9IjE2IiB4Mj0iMTIuMDEiIHkyPSIxNiIvPjwvc3ZnPg==');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 }
 
 /* Animations */
@@ -89,4 +126,27 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Queue Count Badge - Bottom Right of button */
+.soeji-queue-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  background-color: rgba(255, 255, 255, 0.8);
+  color: black;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.soeji-queue-badge-hidden {
+  display: none;
 }

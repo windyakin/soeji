@@ -8,6 +8,16 @@ class SoejiUploader {
     this.observer = null;
     this.processTimeout = null;
     this.config = null;
+    // Upload queue management
+    this.uploadQueue = [];
+    this.activeUploads = 0;
+    this.maxConcurrentUploads = 3;
+    // Track uploaded/uploading images by blob URL (memory only)
+    this.uploadedImages = new Set();
+    // Track if current batch has any errors (for result badge display)
+    this.currentBatchHasError = false;
+    // Timer ID for hiding result badge
+    this.resultBadgeTimeout = null;
     this.init();
   }
 
@@ -141,8 +151,8 @@ class SoejiUploader {
     // Create upload button matching NAI's button style
     const button = document.createElement('button');
     // Use NAI's button classes for consistent styling
+    // Icon is rendered via CSS ::before pseudo-element (Base64 SVG)
     button.className = 'sc-2f2fb315-2 sc-2b71468b-1 kKotZl bzOrRh soeji-upload-btn';
-    button.innerHTML = this.getIcon('upload');
     button.title = 'Upload to Soeji';
     button.onclick = (e) => {
       e.preventDefault();
@@ -150,10 +160,24 @@ class SoejiUploader {
       this.handleUpload(imgElement, button);
     };
 
-    // Create status badge
+    // Create status badge (top-right)
     const badge = document.createElement('span');
     badge.className = 'soeji-badge soeji-badge-hidden';
     button.appendChild(badge);
+
+    // Create queue count badge (bottom-right)
+    const queueBadge = document.createElement('span');
+    queueBadge.className = 'soeji-queue-badge soeji-queue-badge-hidden';
+    button.appendChild(queueBadge);
+
+    // Check if this image was already uploaded in this session
+    this.updateUploadedState(imgElement, button);
+
+    // Watch for src changes on the image element
+    const srcObserver = new MutationObserver(() => {
+      this.updateUploadedState(imgElement, button);
+    });
+    srcObserver.observe(imgElement, { attributes: true, attributeFilter: ['src'] });
 
     wrapper.appendChild(button);
 
@@ -208,97 +232,176 @@ class SoejiUploader {
     return null;
   }
 
-  getIcon(type) {
-    const icons = {
-      upload: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
-      loading: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="soeji-spin"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
-      success: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
-      duplicate: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-      error: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
-    };
-    return icons[type] || icons.upload;
-  }
-
-  updateButtonState(button, state, message = '') {
-    // Always show upload icon, status is shown via badge
-    const iconHtml = this.getIcon('upload');
-
-    // Find or create badge
-    let badge = button.querySelector('.soeji-badge');
-    if (!badge) {
-      badge = document.createElement('span');
-      badge.className = 'soeji-badge';
-    }
-
-    // Update button content (icon + badge)
-    button.innerHTML = iconHtml;
-    button.appendChild(badge);
-
-    // Update badge state
-    badge.classList.remove('soeji-badge-hidden', 'soeji-badge-uploading', 'soeji-badge-success', 'soeji-badge-duplicate', 'soeji-badge-error');
-
-    if (state === 'idle') {
-      badge.classList.add('soeji-badge-hidden');
-      badge.textContent = '';
-    } else if (state === 'uploading') {
-      badge.classList.add('soeji-badge-uploading');
-      badge.innerHTML = '<span class="soeji-spinner"></span>';
-    } else if (state === 'success') {
-      badge.classList.add('soeji-badge-success');
-      badge.textContent = '✓';
-    } else if (state === 'duplicate') {
-      badge.classList.add('soeji-badge-duplicate');
-      badge.textContent = '=';
-    } else if (state === 'error') {
-      badge.classList.add('soeji-badge-error');
-      badge.textContent = '!';
-    }
-
-    const titles = {
-      idle: 'Upload to Soeji',
-      uploading: 'Uploading...',
-      success: 'Uploaded!',
-      duplicate: 'Already exists',
-      error: 'Upload failed'
-    };
-
-    button.title = message || titles[state];
-
-    // Reset to idle after 3 seconds for terminal states
-    if (['success', 'duplicate', 'error'].includes(state)) {
-      setTimeout(() => {
-        this.updateButtonState(button, 'idle');
-      }, 3000);
+  updateUploadedState(imgElement, button) {
+    const blobUrl = imgElement.src;
+    if (this.uploadedImages.has(blobUrl)) {
+      button.classList.add('soeji-uploaded');
+    } else {
+      button.classList.remove('soeji-uploaded');
     }
   }
 
   async handleUpload(imgElement, button) {
-    if (button.classList.contains('soeji-uploading')) {
-      return; // Already uploading
+    const blobUrl = imgElement.src;
+
+    // Check if this image is already queued or uploaded
+    if (this.uploadedImages.has(blobUrl)) {
+      return; // Already in queue or uploaded
     }
 
-    this.updateButtonState(button, 'uploading');
+    // If starting a new batch (queue was empty), reset error flag and cancel result badge timer
+    if (this.uploadQueue.length === 0 && this.activeUploads === 0) {
+      this.currentBatchHasError = false;
+      if (this.resultBadgeTimeout) {
+        clearTimeout(this.resultBadgeTimeout);
+        this.resultBadgeTimeout = null;
+      }
+    }
 
+    // Track this image as uploading/uploaded
+    this.uploadedImages.add(blobUrl);
+    this.updateUploadedState(imgElement, button);
+
+    // Add to queue with blob URL (not element reference)
+    this.uploadQueue.push({ blobUrl });
+    this.updateQueueBadge();
+
+    // Process queue
+    this.processQueue();
+  }
+
+  processQueue() {
+    while (this.activeUploads < this.maxConcurrentUploads && this.uploadQueue.length > 0) {
+      const item = this.uploadQueue.shift();
+      this.activeUploads++;
+      this.updateQueueBadge();
+      this.executeUpload(item.blobUrl);
+    }
+  }
+
+  async executeUpload(blobUrl) {
+    let isError = true;
     try {
       // Extract image blob from blob URL
-      const blob = await this.extractImageBlob(imgElement);
+      const blob = await this.extractImageBlobFromUrl(blobUrl);
 
       // Upload directly to backend (CORS is configured on backend)
       const result = await this.uploadToBackend(blob);
 
       if (result.success) {
-        if (result.duplicate) {
-          this.updateButtonState(button, 'duplicate', 'Image already exists in library');
-        } else {
-          this.updateButtonState(button, 'success', 'Uploaded to Soeji!');
-        }
+        // Duplicate is treated as error
+        isError = result.duplicate;
+        console.log('[Soeji] Upload success:', blobUrl, result.duplicate ? '(duplicate)' : '');
       } else {
-        this.updateButtonState(button, 'error', result.error || 'Upload failed');
+        console.error('[Soeji] Upload failed:', blobUrl, result.error);
       }
     } catch (error) {
-      console.error('[Soeji] Upload error:', error);
-      this.updateButtonState(button, 'error', error.message);
+      console.error('[Soeji] Upload error:', blobUrl, error);
     }
+
+    // Track error for batch result
+    if (isError) {
+      this.currentBatchHasError = true;
+    }
+
+    // Process next
+    this.activeUploads--;
+    this.updateQueueBadge();
+    this.processQueue();
+
+    // Show result status on all buttons (only when queue is empty)
+    if (this.activeUploads === 0 && this.uploadQueue.length === 0) {
+      const status = this.currentBatchHasError ? 'error' : 'success';
+      this.showResultStatus(status);
+    }
+  }
+
+  showResultStatus(status) {
+    // Cancel any existing result badge timer
+    if (this.resultBadgeTimeout) {
+      clearTimeout(this.resultBadgeTimeout);
+      this.resultBadgeTimeout = null;
+    }
+
+    const allButtons = document.querySelectorAll('.soeji-upload-btn');
+    allButtons.forEach((button) => {
+      const badge = button.querySelector('.soeji-badge');
+      if (badge) {
+        // Clear previous state
+        badge.classList.remove('soeji-badge-hidden', 'soeji-badge-queued', 'soeji-badge-uploading', 'soeji-badge-success', 'soeji-badge-error');
+        badge.textContent = '';
+
+        // Remove existing spinner if any
+        const existingSpinner = badge.querySelector('.soeji-spinner');
+        if (existingSpinner) {
+          existingSpinner.remove();
+        }
+
+        // Set result state (icon is shown via CSS ::before)
+        badge.classList.add(`soeji-badge-${status}`);
+      }
+    });
+
+    // Hide after 3 seconds
+    this.resultBadgeTimeout = setTimeout(() => {
+      allButtons.forEach((button) => {
+        const badge = button.querySelector('.soeji-badge');
+        if (badge) {
+          badge.classList.remove(`soeji-badge-${status}`);
+          badge.classList.add('soeji-badge-hidden');
+        }
+      });
+      this.resultBadgeTimeout = null;
+    }, 3000);
+  }
+
+  updateQueueBadge() {
+    const totalPending = this.uploadQueue.length + this.activeUploads;
+
+    // Update all buttons with global status
+    const allButtons = document.querySelectorAll('.soeji-upload-btn');
+    allButtons.forEach((button) => {
+      // Update queue count badge (bottom-right)
+      const queueBadge = button.querySelector('.soeji-queue-badge');
+      if (queueBadge) {
+        if (totalPending > 0) {
+          queueBadge.textContent = totalPending;
+          queueBadge.classList.remove('soeji-queue-badge-hidden');
+        } else {
+          queueBadge.classList.add('soeji-queue-badge-hidden');
+          queueBadge.textContent = '';
+        }
+      }
+
+      // Update status badge (top-right) based on global state
+      const badge = button.querySelector('.soeji-badge');
+      if (badge) {
+        badge.classList.remove('soeji-badge-hidden', 'soeji-badge-queued', 'soeji-badge-uploading', 'soeji-badge-success', 'soeji-badge-error');
+
+        // Remove existing spinner if any
+        const existingSpinner = badge.querySelector('.soeji-spinner');
+        if (existingSpinner) {
+          existingSpinner.remove();
+        }
+
+        if (this.activeUploads > 0) {
+          // Uploading - add spinner element
+          badge.classList.add('soeji-badge-uploading');
+          badge.textContent = '';
+          const spinner = document.createElement('span');
+          spinner.className = 'soeji-spinner';
+          badge.appendChild(spinner);
+        } else if (this.uploadQueue.length > 0) {
+          // Queued but not uploading yet
+          badge.classList.add('soeji-badge-queued');
+          badge.textContent = '…';
+        } else {
+          // Idle
+          badge.classList.add('soeji-badge-hidden');
+          badge.textContent = '';
+        }
+      }
+    });
   }
 
   async uploadToBackend(blob) {
@@ -329,27 +432,25 @@ class SoejiUploader {
     };
   }
 
-  async extractImageBlob(imgElement) {
-    const blobUrl = imgElement.src;
-
-    if (blobUrl.startsWith('blob:')) {
-      const response = await fetch(blobUrl);
-      const blob = await response.blob();
-
-      // Verify it's a PNG
-      const arrayBuffer = await blob.slice(0, 8).arrayBuffer();
-      const signature = new Uint8Array(arrayBuffer);
-      const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-      const isPng = pngSignature.every((byte, i) => signature[i] === byte);
-
-      if (!isPng) {
-        throw new Error('Not a PNG file');
-      }
-
-      return blob;
+  async extractImageBlobFromUrl(blobUrl) {
+    if (!blobUrl.startsWith('blob:')) {
+      throw new Error('Could not extract image data (not a blob URL)');
     }
 
-    throw new Error('Could not extract image data (not a blob URL)');
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+
+    // Verify it's a PNG
+    const arrayBuffer = await blob.slice(0, 8).arrayBuffer();
+    const signature = new Uint8Array(arrayBuffer);
+    const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    const isPng = pngSignature.every((byte, i) => signature[i] === byte);
+
+    if (!isPng) {
+      throw new Error('Not a PNG file');
+    }
+
+    return blob;
   }
 
   generateFilename() {
