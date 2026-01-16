@@ -15,6 +15,18 @@
 .soeji-upload-btn svg {
   width: 16px;
   height: 16px;
+  transition: opacity 0.2s;
+}
+
+.soeji-upload-btn.soeji-uploaded svg {
+  opacity: 0.4;
+}
+
+/* Disabled state for placeholder images */
+.soeji-upload-btn.soeji-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Status Badge - positioned at top-right of button */
@@ -89,4 +101,28 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Queue count badge - positioned at bottom-right of button */
+.soeji-queue-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  color: black;
+  line-height: 1;
+  padding: 0 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.soeji-queue-badge-hidden {
+  display: none;
 }

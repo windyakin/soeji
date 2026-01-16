@@ -8,6 +8,13 @@ class SoejiUploader {
     this.observer = null;
     this.processTimeout = null;
     this.config = null;
+    // Upload queue management
+    this.uploadQueue = [];
+    this.uploadedImages = new Set(); // blob URLs that have been uploaded or are uploading
+    this.currentBatchHasError = false; // Track if any error occurred in current batch
+    this.resultBadgeTimeout = null; // Timer ID for hiding result badge
+    // Store button reference for badge updates
+    this.currentButton = null;
     this.init();
   }
 
@@ -150,12 +157,42 @@ class SoejiUploader {
       this.handleUpload(imgElement, button);
     };
 
-    // Create status badge
-    const badge = document.createElement('span');
-    badge.className = 'soeji-badge soeji-badge-hidden';
-    button.appendChild(badge);
+    // Create progress badge (top-right)
+    const progressBadge = document.createElement('span');
+    progressBadge.className = 'soeji-badge soeji-badge-hidden';
+    button.appendChild(progressBadge);
+
+    // Create queue count badge (bottom-right)
+    const queueBadge = document.createElement('span');
+    queueBadge.className = 'soeji-queue-badge soeji-queue-badge-hidden';
+    button.appendChild(queueBadge);
 
     wrapper.appendChild(button);
+
+    // Store button reference for badge updates
+    this.currentButton = button;
+
+    // Set initial opacity based on whether image is already uploaded
+    this.updateButtonOpacity(button, imgElement);
+
+    // Watch for image src changes to update button state
+    const imgObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === 'src') {
+          this.updateButtonState(button, imgElement);
+        }
+      }
+    });
+    imgObserver.observe(imgElement, { attributes: true, attributeFilter: ['src'] });
+
+    // Watch for streaming image sibling changes (generation start/complete)
+    const parent = imgElement.parentElement;
+    if (parent) {
+      const siblingObserver = new MutationObserver(() => {
+        this.updateButtonState(button, imgElement);
+      });
+      siblingObserver.observe(parent, { childList: true });
+    }
 
     // Insert before the seed button (the last button without data-projection-id wrapper)
     // Structure: div.sc-2b71468b-0 > [div[data-projection-id] x 3] > button (seed)
@@ -219,85 +256,225 @@ class SoejiUploader {
     return icons[type] || icons.upload;
   }
 
-  updateButtonState(button, state, message = '') {
-    // Always show upload icon, status is shown via badge
-    const iconHtml = this.getIcon('upload');
+  isStreamingImage(imgElement) {
+    // Check if .image-grid-streaming-image exists as a sibling element
+    // This indicates the image is still being generated
+    const parent = imgElement.parentElement;
+    if (!parent) return false;
+    return parent.querySelector('img.image-grid-streaming-image') !== null;
+  }
 
-    // Find or create badge
-    let badge = button.querySelector('.soeji-badge');
-    if (!badge) {
-      badge = document.createElement('span');
-      badge.className = 'soeji-badge';
-    }
+  updateButtonState(button, imgElement) {
+    // Check if image is still being generated (streaming)
+    if (this.isStreamingImage(imgElement)) {
+      button.disabled = true;
+      button.classList.add('soeji-disabled');
+      button.title = 'Image is generating...';
+    } else {
+      button.disabled = false;
+      button.classList.remove('soeji-disabled');
+      button.title = 'Upload to Soeji';
 
-    // Update button content (icon + badge)
-    button.innerHTML = iconHtml;
-    button.appendChild(badge);
-
-    // Update badge state
-    badge.classList.remove('soeji-badge-hidden', 'soeji-badge-uploading', 'soeji-badge-success', 'soeji-badge-duplicate', 'soeji-badge-error');
-
-    if (state === 'idle') {
-      badge.classList.add('soeji-badge-hidden');
-      badge.textContent = '';
-    } else if (state === 'uploading') {
-      badge.classList.add('soeji-badge-uploading');
-      badge.innerHTML = '<span class="soeji-spinner"></span>';
-    } else if (state === 'success') {
-      badge.classList.add('soeji-badge-success');
-      badge.textContent = '✓';
-    } else if (state === 'duplicate') {
-      badge.classList.add('soeji-badge-duplicate');
-      badge.textContent = '=';
-    } else if (state === 'error') {
-      badge.classList.add('soeji-badge-error');
-      badge.textContent = '!';
-    }
-
-    const titles = {
-      idle: 'Upload to Soeji',
-      uploading: 'Uploading...',
-      success: 'Uploaded!',
-      duplicate: 'Already exists',
-      error: 'Upload failed'
-    };
-
-    button.title = message || titles[state];
-
-    // Reset to idle after 3 seconds for terminal states
-    if (['success', 'duplicate', 'error'].includes(state)) {
-      setTimeout(() => {
-        this.updateButtonState(button, 'idle');
-      }, 3000);
+      // Update uploaded state
+      const src = imgElement.src;
+      if (this.uploadedImages.has(src)) {
+        button.classList.add('soeji-uploaded');
+      } else {
+        button.classList.remove('soeji-uploaded');
+      }
     }
   }
 
-  async handleUpload(imgElement, button) {
-    if (button.classList.contains('soeji-uploading')) {
-      return; // Already uploading
+  updateButtonOpacity(button, imgElement) {
+    // Delegate to updateButtonState for unified handling
+    this.updateButtonState(button, imgElement);
+  }
+
+  updateBadges() {
+    if (!this.currentButton) return;
+
+    const progressBadge = this.currentButton.querySelector('.soeji-badge');
+    const queueBadge = this.currentButton.querySelector('.soeji-queue-badge');
+
+    if (!progressBadge || !queueBadge) return;
+
+    const uploadingCount = this.uploadQueue.filter(i => i.status === 'uploading').length;
+    const pendingCount = this.uploadQueue.filter(i => i.status === 'pending').length;
+    const totalActive = uploadingCount + pendingCount;
+
+    // Update queue count badge (bottom-right)
+    if (totalActive > 0) {
+      queueBadge.textContent = totalActive.toString();
+      queueBadge.classList.remove('soeji-queue-badge-hidden');
+    } else {
+      queueBadge.classList.add('soeji-queue-badge-hidden');
     }
 
-    this.updateButtonState(button, 'uploading');
+    // Update progress badge (top-right) - show spinner if uploading
+    if (uploadingCount > 0 || pendingCount > 0) {
+      // Clear any pending result badge timeout
+      if (this.resultBadgeTimeout) {
+        clearTimeout(this.resultBadgeTimeout);
+        this.resultBadgeTimeout = null;
+      }
+      this.showProgressBadge(progressBadge, 'uploading');
+    }
+  }
 
+  showProgressBadge(badge, state) {
+    // Remove all state classes
+    badge.classList.remove('soeji-badge-hidden', 'soeji-badge-uploading', 'soeji-badge-success', 'soeji-badge-error');
+
+    if (state === 'uploading') {
+      badge.classList.add('soeji-badge-uploading');
+      // Clear text and add spinner
+      badge.textContent = '';
+      const spinner = document.createElement('span');
+      spinner.className = 'soeji-spinner';
+      badge.appendChild(spinner);
+    } else if (state === 'success') {
+      badge.classList.add('soeji-badge-success');
+      badge.textContent = '✓';
+    } else if (state === 'error') {
+      badge.classList.add('soeji-badge-error');
+      badge.textContent = '!';
+    } else {
+      badge.classList.add('soeji-badge-hidden');
+      badge.textContent = '';
+    }
+  }
+
+  showResultStatus() {
+    if (!this.currentButton) return;
+
+    const progressBadge = this.currentButton.querySelector('.soeji-badge');
+    if (!progressBadge) return;
+
+    // Show result based on whether there were errors
+    if (this.currentBatchHasError) {
+      this.showProgressBadge(progressBadge, 'error');
+      this.currentButton.title = 'Some uploads failed';
+    } else {
+      this.showProgressBadge(progressBadge, 'success');
+      this.currentButton.title = 'All uploads completed';
+    }
+
+    // Reset error flag for next batch
+    this.currentBatchHasError = false;
+
+    // Hide badge after 3 seconds
+    this.resultBadgeTimeout = setTimeout(() => {
+      this.showProgressBadge(progressBadge, 'hidden');
+      this.currentButton.title = 'Upload to Soeji';
+      this.resultBadgeTimeout = null;
+    }, 3000);
+  }
+
+  async handleUpload(imgElement, button) {
+    // Skip streaming images (still being generated)
+    if (this.isStreamingImage(imgElement)) {
+      console.log('[Soeji] Skipping streaming image');
+      return;
+    }
+
+    const blobUrl = imgElement.src;
+
+    // Check if this image is already in the queue (uploading or pending)
+    const isInQueue = this.uploadQueue.some(item => item.blobUrl === blobUrl);
+    if (isInQueue) {
+      console.log('[Soeji] Image already in queue:', blobUrl);
+      return;
+    }
+
+    // Add to uploaded images set and update button opacity
+    this.uploadedImages.add(blobUrl);
+    this.updateButtonOpacity(button, imgElement);
+
+    // Create queue item
+    const queueItem = {
+      id: crypto.randomUUID(),
+      blobUrl: blobUrl,
+      status: 'pending'
+    };
+
+    // Add to queue
+    this.uploadQueue.push(queueItem);
+    console.log('[Soeji] Added to queue:', queueItem.id, 'Queue length:', this.uploadQueue.length);
+
+    // Update badges and process queue
+    this.updateBadges();
+    this.processQueue();
+  }
+
+  processQueue() {
+    // Find a pending item to process
+    const pendingItem = this.uploadQueue.find(item => item.status === 'pending');
+    if (!pendingItem) {
+      return;
+    }
+
+    // Check if we already have an uploading item (process one at a time for simplicity)
+    const uploadingItem = this.uploadQueue.find(item => item.status === 'uploading');
+    if (uploadingItem) {
+      return;
+    }
+
+    // Start uploading
+    pendingItem.status = 'uploading';
+    this.updateBadges();
+    this.executeUpload(pendingItem);
+  }
+
+  async executeUpload(item) {
     try {
       // Extract image blob from blob URL
-      const blob = await this.extractImageBlob(imgElement);
+      const blob = await this.extractImageBlob(item.blobUrl);
 
       // Upload directly to backend (CORS is configured on backend)
       const result = await this.uploadToBackend(blob);
 
       if (result.success) {
         if (result.duplicate) {
-          this.updateButtonState(button, 'duplicate', 'Image already exists in library');
+          item.status = 'duplicate';
+          console.log('[Soeji] Duplicate:', item.id);
         } else {
-          this.updateButtonState(button, 'success', 'Uploaded to Soeji!');
+          item.status = 'success';
+          console.log('[Soeji] Success:', item.id);
         }
       } else {
-        this.updateButtonState(button, 'error', result.error || 'Upload failed');
+        item.status = 'error';
+        this.currentBatchHasError = true;
+        // Remove from uploadedImages so user can retry
+        this.uploadedImages.delete(item.blobUrl);
+        this.updateButtonOpacity(this.currentButton, { src: item.blobUrl });
+        console.log('[Soeji] Error:', item.id, result.error);
       }
     } catch (error) {
       console.error('[Soeji] Upload error:', error);
-      this.updateButtonState(button, 'error', error.message);
+      item.status = 'error';
+      this.currentBatchHasError = true;
+      // Remove from uploadedImages so user can retry
+      this.uploadedImages.delete(item.blobUrl);
+      this.updateButtonOpacity(this.currentButton, { src: item.blobUrl });
+    }
+
+    // Remove completed item from queue
+    const index = this.uploadQueue.findIndex(i => i.id === item.id);
+    if (index !== -1) {
+      this.uploadQueue.splice(index, 1);
+    }
+
+    // Update badges
+    this.updateBadges();
+
+    // Check if queue is empty
+    const hasActiveItems = this.uploadQueue.some(i => i.status === 'uploading' || i.status === 'pending');
+    if (!hasActiveItems) {
+      // Queue is complete, show result status
+      this.showResultStatus();
+    } else {
+      // Process next item
+      this.processQueue();
     }
   }
 
@@ -329,9 +506,7 @@ class SoejiUploader {
     };
   }
 
-  async extractImageBlob(imgElement) {
-    const blobUrl = imgElement.src;
-
+  async extractImageBlob(blobUrl) {
     if (blobUrl.startsWith('blob:')) {
       const response = await fetch(blobUrl);
       const blob = await response.blob();
