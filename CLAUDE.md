@@ -17,6 +17,7 @@ soejiはNovelAI（NAI）で生成されたPNG画像のメタデータを解析�
 - **CDN**: Nginx（キャッシュプロキシ）
 - **converter**: Go（PNG→WebP変換、リサイズ）
 - **ファイル共有**: Samba
+- **browser-extension**: Chrome/Firefox拡張機能（NovelAI連携）
 
 ## リポジトリ構造
 
@@ -49,6 +50,11 @@ soeji/
 │   ├── handlers.go     # HTTPハンドラー
 │   └── converter.go    # 画像変換ロジック
 ├── cdn/                # Nginx CDNキャッシュ設定
+├── browser-extension/  # Chrome/Firefox拡張機能
+│   ├── manifest.json         # 拡張機能マニフェスト (MV3)
+│   ├── background.js         # Service Worker
+│   ├── content-scripts/      # NovelAI用スクリプト
+│   └── popup/                # 設定ポップアップ
 ├── docker-compose.yml  # 全サービス定義
 └── package.json        # npm workspaces設定
 ```
@@ -120,6 +126,18 @@ docker compose build converter
 3. S3に画像とメタデータJSON（`{hash}.metadata.json`）を保存
 4. DBに登録（`hasMetadataFile: true`フラグ付き）
 5. Meilisearchにインデックス
+
+#### ブラウザ拡張機能経由（NovelAI連携）
+
+```
+[NovelAI] → [browser-extension] → [backend /api/upload] → [S3 + PostgreSQL + Meilisearch]
+```
+
+1. NovelAI（https://novelai.net）で画像生成
+2. 拡張機能が画像グリッドにアップロードボタンを注入
+3. ボタンクリックで画像をContent Scriptから直接アップロード（CORS経由）
+4. backendが通常のアップロードと同様に処理
+5. 認証は`X-Watcher-Key`ヘッダーを使用（watcher と同じ方式）
 
 ### S3 URL生成
 
@@ -255,6 +273,7 @@ admin権限ユーザーのみ利用可能：
 | `/api/images/tags` | POST | 画像に一括タグ追加 |
 | `/api/images/:imageId/tags/:tagId` | DELETE | 画像からタグ削除 |
 | `/api/upload` | POST | 画像アップロード |
+| `/api/upload/test` | GET | API Key検証（拡張機能用） |
 | `/api/tags` | GET | タグ一覧・サジェスト |
 | `/api/stats` | GET | 統計情報（キャッシュ付き） |
 | `/api/auth/*` | - | 認証関連 |
@@ -305,6 +324,10 @@ admin権限ユーザーのみ利用可能：
 | `converter/handlers.go` | HTTPハンドラー |
 | `converter/converter.go` | PNG→WebP変換ロジック |
 | `cdn/templates/default.conf.template` | CDNサーバー設定（envsubstテンプレート） |
+| `browser-extension/manifest.json` | 拡張機能マニフェスト（MV3） |
+| `browser-extension/background.js` | 拡張機能Service Worker |
+| `browser-extension/content-scripts/novelai.js` | NovelAI連携スクリプト |
+| `browser-extension/popup/popup.js` | 設定ポップアップロジック |
 
 ## Docker構成
 
@@ -418,7 +441,7 @@ ImageGridでは固定サイズ（400px）を使用し、キャッシュ効率を
 - S3_PUBLIC_ENDPOINTはCDN経由（`:9080`）を指定することで画像変換・キャッシュを利用
 - converter変更時はDocker再ビルドが必要（`docker compose build converter`）
 - フロントエンドはPWA対応のため、Service Worker更新時にユーザーへ通知が表示される
-- watcher用の内部APIキー（`WATCHER_API_KEY`）はbackendとwatcher間で共有
+- watcher用の内部APIキー（`WATCHER_API_KEY`）はbackendとwatcher間、およびブラウザ拡張機能で共有
 
 ### マイグレーションファイルの作成（重要）
 
@@ -444,3 +467,50 @@ npm run db:migrate -w @soeji/backend -- --name <migration_name>
 - [ ] マイグレーションファイル作成
 - [ ] `npm run db:generate` でPrismaクライアント再生成
 - [ ] ローカルで `npm run db:push` または `npm run db:migrate` でテスト
+
+## ブラウザ拡張機能
+
+NovelAI（https://novelai.net）で生成した画像を直接soejiにアップロードするChrome/Firefox両対応の拡張機能。
+
+### 開発コマンド
+
+```bash
+cd browser-extension
+npm install
+
+# 開発モード
+npm run dev:firefox  # Firefox で開発
+npm run dev:chrome   # Chrome で開発
+
+# ビルド
+npm run build        # パッケージ作成（Chrome / Firefox 両対応）
+
+# Lint
+npm run lint         # web-ext lint
+```
+
+### 技術仕様
+
+- **Manifest V3**: Chrome/Firefox両対応
+- **認証**: `X-Watcher-Key`ヘッダー（watcher と同じ方式）
+- **CORS**: Content Scriptから直接バックエンドにアップロード
+- **ストレージ**: `browser.storage.local`（設定保存）
+
+### CORS設定
+
+バックエンド（`backend/src/index.ts`）で動的CORS設定を使用：
+- `/api/upload`エンドポイントに対して`https://novelai.net`、`chrome-extension://`、`moz-extension://`からのリクエストを許可
+- `X-Watcher-Key`ヘッダーを許可
+
+### Firefox Add-ons 対応
+
+`data_collection_permissions`の設定が必要（Firefox 142以降）：
+```json
+"browser_specific_settings": {
+  "gecko": {
+    "data_collection_permissions": {
+      "required": ["none"]
+    }
+  }
+}
+```

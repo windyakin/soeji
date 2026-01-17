@@ -1,0 +1,92 @@
+/* Soeji Upload Button Styles for NAI */
+
+.soeji-button-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/* Button inherits NAI styles via sc-* classes, minimal overrides */
+.soeji-upload-btn {
+  position: relative;
+}
+
+.soeji-upload-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Status Badge - positioned at top-right of button */
+.soeji-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  line-height: 1;
+  padding: 0 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.soeji-badge-hidden {
+  display: none;
+}
+
+/* Uploading state - blue with spinner */
+.soeji-badge-uploading {
+  background-color: #3b82f6;
+  animation: soeji-pulse 1s infinite;
+}
+
+/* Success state - green */
+.soeji-badge-success {
+  background-color: #22c55e;
+}
+
+/* Duplicate state - yellow/amber */
+.soeji-badge-duplicate {
+  background-color: #eab308;
+}
+
+/* Error state - red */
+.soeji-badge-error {
+  background-color: #ef4444;
+}
+
+/* Spinner inside badge */
+.soeji-spinner {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: soeji-spin 0.6s linear infinite;
+}
+
+/* Animations */
+@keyframes soeji-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes soeji-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
