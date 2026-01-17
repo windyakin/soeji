@@ -4,7 +4,7 @@ NAI で作った PNG画像のメタデータを解析し、検索可能なライ
 
 基本的にローカルネットワーク上での自己ホスティングを想定しています。
 
-![soeji architecture](./doc/soeji_architecture.drawio.png)
+![Screenshot](./doc/screenshot.png)
 
 ## 機能
 
@@ -21,7 +21,9 @@ NAI で作った PNG画像のメタデータを解析し、検索可能なライ
 - サムネイル生成（リサイズ・クロップ）
 - CDNキャッシュによる高速配信
 
-### コンポーネント
+### アーキテクチャとコンポーネント
+
+![soeji architecture](./doc/soeji_architecture.drawio.png)
 
 | サービス | 説明 |
 |---------|------|
