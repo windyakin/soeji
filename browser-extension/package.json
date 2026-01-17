@@ -1,6 +1,6 @@
 {
   "name": "soeji-browser-extension",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Browser extension to upload NovelAI images to soeji",
   "private": true,
   "scripts": {
