@@ -12,6 +12,7 @@ import { statsRouter } from "./routes/stats.js";
 import { authRouter } from "./routes/auth.js";
 import { usersRouter } from "./routes/users.js";
 import { uploadRouter } from "./routes/upload.js";
+import { initializeMeilisearch, initializeTagsIndex } from "./services/meilisearch.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -68,6 +69,10 @@ app.get("/health", (_req, res) => {
 
 // Start server
 async function start() {
+  // Initialize Meilisearch indexes
+  await initializeMeilisearch();
+  await initializeTagsIndex();
+
   app.listen(PORT, () => {
     console.log(`Backend server running on http://localhost:${PORT}`);
   });
