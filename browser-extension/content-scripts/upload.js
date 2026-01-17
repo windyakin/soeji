@@ -10,11 +10,17 @@ class SoejiUploader {
     this.config = null;
     // Upload queue management
     this.uploadQueue = [];
-    this.uploadedImages = new Set(); // blob URLs that have been uploaded or are uploading
     this.currentBatchHasError = false; // Track if any error occurred in current batch
     this.resultBadgeTimeout = null; // Timer ID for hiding result badge
     // Store button reference for badge updates
     this.currentButton = null;
+    // History item tracking - Map-based centralized management
+    // Key: blob URL, Value: { status, index }
+    // - status: 'pending'|'uploading'|'success'|'duplicate'|'error'|'hidden'
+    // - index: DOM index (0 = newest/top)
+    this.history = new Map();
+    this.historyBadgeTimeouts = new Map(); // blob URL -> timeout ID (for auto-hide)
+    this.historyObserver = null; // MutationObserver for history container (for index shift)
     this.init();
   }
 
@@ -43,6 +49,9 @@ class SoejiUploader {
 
     // Watch for new images (NAI uses dynamic rendering)
     this.startObserver();
+
+    // Watch for history container changes (for badge re-sync when new items added)
+    this.startHistoryObserver();
   }
 
   async loadConfig() {
@@ -121,6 +130,124 @@ class SoejiUploader {
       childList: true,
       subtree: true
     });
+  }
+
+  startHistoryObserver() {
+    // Watch for changes in the history container to shift indices when new items are added
+    const checkAndObserve = () => {
+      const historyContainer = document.getElementById('historyContainer');
+      if (!historyContainer) {
+        // Retry after a short delay if container not found yet
+        setTimeout(checkAndObserve, 500);
+        return;
+      }
+
+      const container = historyContainer.querySelector('.sc-5d63727e-2');
+      if (!container) {
+        setTimeout(checkAndObserve, 500);
+        return;
+      }
+
+      // Store current item count
+      let previousItemCount = container.querySelectorAll('.sc-5d63727e-28').length;
+
+      this.historyObserver = new MutationObserver(() => {
+        const currentItemCount = container.querySelectorAll('.sc-5d63727e-28').length;
+
+        if (currentItemCount > previousItemCount) {
+          // New items were added at the top (index 0)
+          // Shift all existing indices by the number of new items
+          const addedCount = currentItemCount - previousItemCount;
+          this.shiftHistoryIndices(addedCount);
+          console.log('[Soeji] History items added:', addedCount, 'Shifted indices');
+          // Re-sync badges after addition
+          this.syncHistoryBadges();
+        } else if (currentItemCount < previousItemCount) {
+          // Items were deleted - handle index adjustment using bgHash comparison
+          console.log('[Soeji] History items deleted:', previousItemCount - currentItemCount);
+          this.handleHistoryDeletion();
+        } else {
+          // Count unchanged but content may have changed - just re-sync
+          this.syncHistoryBadges();
+        }
+
+        previousItemCount = currentItemCount;
+      });
+
+      this.historyObserver.observe(container, {
+        childList: true
+      });
+
+      console.log('[Soeji] History observer started');
+    };
+
+    checkAndObserve();
+  }
+
+  shiftHistoryIndices(count) {
+    // Shift all indices in history Map by count (new items added at top)
+    for (const [blobUrl, data] of this.history) {
+      data.index += count;
+    }
+  }
+
+  handleHistoryDeletion() {
+    // Handle deletion of history items by comparing bgHash
+    const historyItems = this.getHistoryItems();
+    const maxIndex = historyItems.length - 1;
+
+    for (const [blobUrl, data] of this.history) {
+      // If index exceeds DOM length, clamp to last element
+      const checkIndex = Math.min(data.index, maxIndex);
+      const domElement = historyItems[checkIndex];
+
+      if (!domElement) {
+        // No DOM elements at all - delete this entry
+        console.log('[Soeji] History item deleted (no DOM element):', blobUrl);
+        this.history.delete(blobUrl);
+        const timeout = this.historyBadgeTimeouts.get(blobUrl);
+        if (timeout) {
+          clearTimeout(timeout);
+          this.historyBadgeTimeouts.delete(blobUrl);
+        }
+        continue;
+      }
+
+      const currentBgHash = this.getBackgroundImageHash(domElement);
+
+      if (currentBgHash === data.bgHash) {
+        // Match found - update index if it was clamped
+        if (checkIndex !== data.index) {
+          console.log('[Soeji] Index adjusted for:', blobUrl, 'from', data.index, 'to', checkIndex);
+          data.index = checkIndex;
+        }
+      } else {
+        // bgHash mismatch - try shifting index down by 1
+        const shiftedIndex = data.index - 1;
+        if (shiftedIndex >= 0) {
+          const shiftedElement = historyItems[shiftedIndex];
+          const shiftedBgHash = shiftedElement ? this.getBackgroundImageHash(shiftedElement) : null;
+
+          if (shiftedBgHash === data.bgHash) {
+            // Found at shifted position
+            console.log('[Soeji] Index shifted for:', blobUrl, 'from', data.index, 'to', shiftedIndex);
+            data.index = shiftedIndex;
+            continue;
+          }
+        }
+
+        // Not found - this entry was deleted
+        console.log('[Soeji] History item deleted (bgHash mismatch):', blobUrl);
+        this.history.delete(blobUrl);
+        const timeout = this.historyBadgeTimeouts.get(blobUrl);
+        if (timeout) {
+          clearTimeout(timeout);
+          this.historyBadgeTimeouts.delete(blobUrl);
+        }
+      }
+    }
+
+    this.syncHistoryBadges();
   }
 
   injectButton(imgElement) {
@@ -264,6 +391,55 @@ class SoejiUploader {
     return parent.querySelector('img.image-grid-streaming-image') !== null;
   }
 
+  getHistoryItems() {
+    // Get all history items from the container
+    const historyContainer = document.getElementById('historyContainer');
+    if (!historyContainer) return [];
+
+    const container = historyContainer.querySelector('.sc-5d63727e-2');
+    if (!container) return [];
+
+    return Array.from(container.querySelectorAll('.sc-5d63727e-28'));
+  }
+
+  getSelectedHistoryIndex() {
+    // Find the currently selected history item index
+    // Returns the index if found, -1 otherwise
+    const items = this.getHistoryItems();
+    if (items.length === 0) return -1;
+
+    // Find the selected item by checking border-color
+    // Selected: rgb(245, 243, 194), Non-selected: transparent or rgba(0, 0, 0, 0)
+    for (let i = 0; i < items.length; i++) {
+      const computedStyle = window.getComputedStyle(items[i]);
+      const borderColor = computedStyle.borderColor;
+      const isSelected = borderColor !== 'transparent' &&
+                         borderColor !== 'rgba(0, 0, 0, 0)';
+      if (isSelected) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  getBackgroundImageHash(element) {
+    // Hash the entire background-image style (including base64 data)
+    const style = window.getComputedStyle(element);
+    const bgImage = style.backgroundImage;
+    if (!bgImage || bgImage === 'none') return null;
+    return this.hashString(bgImage);
+  }
+
+  hashString(str) {
+    // djb2 hash algorithm - produces short, consistent hash
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
+    }
+    // Convert to unsigned 32-bit and then to hex string (8 chars)
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  }
+
   updateButtonState(button, imgElement) {
     // Check if image is still being generated (streaming)
     if (this.isStreamingImage(imgElement)) {
@@ -275,9 +451,9 @@ class SoejiUploader {
       button.classList.remove('soeji-disabled');
       button.title = 'Upload to Soeji';
 
-      // Update uploaded state
+      // Update uploaded state (check if in history map)
       const src = imgElement.src;
-      if (this.uploadedImages.has(src)) {
+      if (this.history.has(src)) {
         button.classList.add('soeji-uploaded');
       } else {
         button.classList.remove('soeji-uploaded');
@@ -344,6 +520,132 @@ class SoejiUploader {
     }
   }
 
+  // Sync history badges with current history Map state
+  // Called whenever history state changes
+  syncHistoryBadges() {
+    const historyItems = this.getHistoryItems(); // DOM elements (0 = newest)
+    if (!historyItems || historyItems.length === 0) return;
+
+    // Build a reverse lookup: index -> data
+    const indexToData = new Map();
+    for (const [blobUrl, data] of this.history) {
+      indexToData.set(data.index, { blobUrl, ...data });
+    }
+
+    // Clear all existing badges, set data-history-key, and manage delete button state
+    historyItems.forEach((item, index) => {
+      const existingBadge = item.querySelector('.soeji-history-badge');
+      if (existingBadge) existingBadge.remove();
+
+      const data = indexToData.get(index);
+      const deleteBtn = item.querySelector('button[aria-label="delete image(s)"]');
+
+      // Set data-history-key for debugging
+      if (data) {
+        const keyId = data.blobUrl.split('/').pop() || data.blobUrl;
+        item.setAttribute('data-history-key', keyId);
+
+        // Disable delete button while uploading/pending
+        if (deleteBtn) {
+          const isUploading = data.status === 'uploading' || data.status === 'pending';
+          deleteBtn.disabled = isUploading;
+          if (isUploading) {
+            deleteBtn.style.opacity = '0.3';
+            deleteBtn.style.pointerEvents = 'none';
+          } else {
+            deleteBtn.style.opacity = '';
+            deleteBtn.style.pointerEvents = '';
+          }
+        }
+      } else {
+        item.setAttribute('data-history-key', `(none:${index})`);
+        // Re-enable delete button for items not in history
+        if (deleteBtn) {
+          deleteBtn.disabled = false;
+          deleteBtn.style.opacity = '';
+          deleteBtn.style.pointerEvents = '';
+        }
+      }
+    });
+
+    // For each entry in history Map, create badge at the corresponding DOM index
+    for (const [, data] of this.history) {
+      if (data.status === 'hidden') continue;
+
+      const historyElement = historyItems[data.index];
+      if (!historyElement) continue;
+
+      this.createHistoryBadge(historyElement, data.status);
+    }
+  }
+
+  // Create a badge on a history element with the given state
+  createHistoryBadge(historyElement, state) {
+    // Ensure history element has position: relative for absolute positioning
+    const computedStyle = window.getComputedStyle(historyElement);
+    if (computedStyle.position === 'static') {
+      historyElement.style.position = 'relative';
+    }
+
+    // Create new badge
+    const badge = document.createElement('span');
+    badge.className = 'soeji-history-badge';
+
+    if (state === 'uploading' || state === 'pending') {
+      badge.classList.add('soeji-history-badge-uploading');
+      const spinner = document.createElement('span');
+      spinner.className = 'soeji-spinner';
+      badge.appendChild(spinner);
+    } else if (state === 'success') {
+      badge.classList.add('soeji-history-badge-success');
+      badge.textContent = '✓';
+    } else if (state === 'duplicate') {
+      badge.classList.add('soeji-history-badge-duplicate');
+      badge.textContent = '✓';
+    } else if (state === 'error') {
+      badge.classList.add('soeji-history-badge-error');
+      badge.textContent = '!';
+    } else {
+      badge.classList.add('soeji-history-badge-hidden');
+    }
+
+    historyElement.appendChild(badge);
+  }
+
+  // Update history item status and sync badges
+  updateHistoryStatus(blobUrl, status, index = null, bgHash = null) {
+    // Clear any existing timeout for this blob
+    const existingTimeout = this.historyBadgeTimeouts.get(blobUrl);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      this.historyBadgeTimeouts.delete(blobUrl);
+    }
+
+    // Get existing entry to preserve index and bgHash if not provided
+    const existing = this.history.get(blobUrl);
+    const finalIndex = index !== null ? index : (existing ? existing.index : 0);
+    const finalBgHash = bgHash !== null ? bgHash : (existing ? existing.bgHash : null);
+
+    // Update status in history Map (preserve index and bgHash)
+    this.history.set(blobUrl, { status, index: finalIndex, bgHash: finalBgHash });
+
+    // Sync badges
+    this.syncHistoryBadges();
+
+    // Set auto-hide timeout for success/duplicate
+    if (status === 'success' || status === 'duplicate') {
+      const timeout = setTimeout(() => {
+        const current = this.history.get(blobUrl);
+        if (current) {
+          this.history.set(blobUrl, { status: 'hidden', index: current.index, bgHash: current.bgHash });
+        }
+        this.historyBadgeTimeouts.delete(blobUrl);
+        this.syncHistoryBadges();
+      }, 3000);
+      this.historyBadgeTimeouts.set(blobUrl, timeout);
+    }
+  }
+
   showResultStatus() {
     if (!this.currentButton) return;
 
@@ -386,11 +688,19 @@ class SoejiUploader {
       return;
     }
 
-    // Add to uploaded images set and update button opacity
-    this.uploadedImages.add(blobUrl);
+    // Get the currently selected history item index and its background-image hash
+    const historyIndex = this.getSelectedHistoryIndex();
+    const historyItems = this.getHistoryItems();
+    const bgHash = historyIndex >= 0 && historyItems[historyIndex]
+      ? this.getBackgroundImageHash(historyItems[historyIndex])
+      : null;
+    console.log('[Soeji] Selected history index:', historyIndex, 'bgHash:', bgHash);
+
+    // Add to history map with pending status, index, and bgHash, update button opacity
+    this.updateHistoryStatus(blobUrl, 'pending', historyIndex, bgHash);
     this.updateButtonOpacity(button, imgElement);
 
-    // Create queue item
+    // Create queue item (no historyIndex - use blobUrl to reference history)
     const queueItem = {
       id: crypto.randomUUID(),
       blobUrl: blobUrl,
@@ -426,6 +736,9 @@ class SoejiUploader {
   }
 
   async executeUpload(item) {
+    // Update history status to uploading
+    this.updateHistoryStatus(item.blobUrl, 'uploading');
+
     try {
       // Extract image blob from blob URL
       const blob = await this.extractImageBlob(item.blobUrl);
@@ -437,25 +750,27 @@ class SoejiUploader {
         if (result.duplicate) {
           item.status = 'duplicate';
           console.log('[Soeji] Duplicate:', item.id);
+          // Update history status to duplicate
+          this.updateHistoryStatus(item.blobUrl, 'duplicate');
         } else {
           item.status = 'success';
           console.log('[Soeji] Success:', item.id);
+          // Update history status to success
+          this.updateHistoryStatus(item.blobUrl, 'success');
         }
       } else {
         item.status = 'error';
         this.currentBatchHasError = true;
-        // Remove from uploadedImages so user can retry
-        this.uploadedImages.delete(item.blobUrl);
-        this.updateButtonOpacity(this.currentButton, { src: item.blobUrl });
+        // Update history status to error (keep badge visible for retry)
+        this.updateHistoryStatus(item.blobUrl, 'error');
         console.log('[Soeji] Error:', item.id, result.error);
       }
     } catch (error) {
       console.error('[Soeji] Upload error:', error);
       item.status = 'error';
       this.currentBatchHasError = true;
-      // Remove from uploadedImages so user can retry
-      this.uploadedImages.delete(item.blobUrl);
-      this.updateButtonOpacity(this.currentButton, { src: item.blobUrl });
+      // Update history status to error (keep badge visible for retry)
+      this.updateHistoryStatus(item.blobUrl, 'error');
     }
 
     // Remove completed item from queue

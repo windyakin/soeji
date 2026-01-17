@@ -126,3 +126,57 @@
 .soeji-queue-badge-hidden {
   display: none;
 }
+
+/* History item badge - positioned at bottom-right of history item */
+.soeji-history-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  line-height: 1;
+  padding: 0 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.soeji-history-badge-hidden {
+  display: none;
+}
+
+/* History badge states - same as button badge */
+.soeji-history-badge-uploading {
+  background-color: #3b82f6;
+  animation: soeji-pulse 1s infinite;
+}
+
+.soeji-history-badge-success {
+  background-color: #22c55e;
+}
+
+.soeji-history-badge-duplicate {
+  background-color: #eab308;
+}
+
+.soeji-history-badge-error {
+  background-color: #ef4444;
+}
+
+/* Spinner inside history badge */
+.soeji-history-badge .soeji-spinner {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: soeji-spin 0.6s linear infinite;
+}
