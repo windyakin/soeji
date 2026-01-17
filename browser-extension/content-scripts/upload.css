@@ -12,9 +12,34 @@
   position: relative;
 }
 
-.soeji-upload-btn svg {
+/* Icon using CSS mask-image (avoiding innerHTML for SVG, color controlled by background-color) */
+.soeji-upload-btn::before {
+  content: '';
+  display: block;
   width: 16px;
   height: 16px;
+  /* Upload icon SVG as mask - stroke color in SVG doesn't matter, controlled by background-color */
+  -webkit-mask-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTIxIDE1djRhMiAyIDAgMCAxLTIgMkg1YTIgMiAwIDAgMS0yLTJ2LTQiLz48cG9seWxpbmUgcG9pbnRzPSIxNyA4IDEyIDMgNyA4Ii8+PGxpbmUgeDE9IjEyIiB5MT0iMyIgeDI9IjEyIiB5Mj0iMTUiLz48L3N2Zz4=');
+  mask-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTIxIDE1djRhMiAyIDAgMCAxLTIgMkg1YTIgMiAwIDAgMS0yLTJ2LTQiLz48cG9seWxpbmUgcG9pbnRzPSIxNyA4IDEyIDMgNyA4Ii8+PGxpbmUgeDE9IjEyIiB5MT0iMyIgeDI9IjEyIiB5Mj0iMTUiLz48L3N2Zz4=');
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background-color: white;
+  transition: opacity 0.2s;
+}
+
+.soeji-upload-btn.soeji-uploaded::before {
+  opacity: 0.4;
+}
+
+/* Disabled state for placeholder images */
+.soeji-upload-btn.soeji-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Status Badge - positioned at top-right of button */
@@ -89,4 +114,82 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Queue count badge - positioned at bottom-right of button */
+.soeji-queue-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  color: black;
+  line-height: 1;
+  padding: 0 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.soeji-queue-badge-hidden {
+  display: none;
+}
+
+/* History item badge - positioned at bottom-right of history item */
+.soeji-history-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  line-height: 1;
+  padding: 0 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.soeji-history-badge-hidden {
+  display: none;
+}
+
+/* History badge states - same as button badge */
+.soeji-history-badge-uploading {
+  background-color: #3b82f6;
+  animation: soeji-pulse 1s infinite;
+}
+
+.soeji-history-badge-success {
+  background-color: #22c55e;
+}
+
+.soeji-history-badge-duplicate {
+  background-color: #eab308;
+}
+
+.soeji-history-badge-error {
+  background-color: #ef4444;
+}
+
+/* Spinner inside history badge */
+.soeji-history-badge .soeji-spinner {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: soeji-spin 0.6s linear infinite;
 }

@@ -2,6 +2,12 @@
 
 NAI で生成した画像を直接 soeji にアップロードするブラウザ拡張機能です。
 
+[![Chrome Web Store](./image/chrome.png)](https://chromewebstore.google.com/detail/soeji-uploader-for-nai/boaolindibeokfkjfkhlgkfkgcmelnfn) [![Firefox Add-ons](./image/firefox.png)](https://addons.mozilla.org/ja/firefox/addon/soeji-uploader-for-nai/)
+
+![](./image/screenshot-config.png)
+
+![](./image/screenshot-upload.png)
+
 ## 機能
 
 - NAI の画像生成画面にアップロードボタンを追加
