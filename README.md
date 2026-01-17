@@ -4,6 +4,8 @@ NAI で作った PNG画像のメタデータを解析し、検索可能なライ
 
 基本的にローカルネットワーク上での自己ホスティングを想定しています。
 
+![soeji architecture](./doc/soeji_architecture.drawio.png)
+
 ## 機能
 
 - PNG画像のメタデータ自動抽出
