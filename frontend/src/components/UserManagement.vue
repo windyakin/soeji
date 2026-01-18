@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -11,6 +11,7 @@ import Password from 'primevue/password'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useAuth } from '../composables/useAuth'
+import { useBackButtonClose } from '../composables/useBackButtonClose'
 import type { UserListItem, UserRole, CreateUserRequest } from '../types/auth'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
@@ -23,6 +24,16 @@ const loading = ref(false)
 const showCreateDialog = ref(false)
 const showDeleteDialog = ref(false)
 const userToDelete = ref<UserListItem | null>(null)
+
+// Track if any dialog is open for back button handling
+const isDialogOpen = computed(() => showCreateDialog.value || showDeleteDialog.value)
+
+// Close dialog on browser back button
+useBackButtonClose(isDialogOpen, 'user-management', () => {
+  showCreateDialog.value = false
+  showDeleteDialog.value = false
+  userToDelete.value = null
+})
 
 // Form state
 const newUser = ref<CreateUserRequest>({

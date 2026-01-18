@@ -50,6 +50,7 @@ import Button from "primevue/button";
 import Dialog from "primevue/dialog";
 import UploadPanel from "./UploadPanel.vue";
 import { useUpload } from "../../composables/useUpload";
+import { useBackButtonClose } from "../../composables/useBackButtonClose";
 
 const emit = defineEmits<{
   uploaded: [];
@@ -66,6 +67,11 @@ const {
 
 // Dialog state
 const dialogVisible = ref(false);
+
+// Close dialog on browser back button
+useBackButtonClose(dialogVisible, "upload", () => {
+  dialogVisible.value = false;
+});
 
 // Flag to show completion status on button (resets after 10 seconds or when modal opens)
 const showCompletionStatus = ref(false);

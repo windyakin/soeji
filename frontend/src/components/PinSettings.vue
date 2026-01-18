@@ -9,6 +9,7 @@ import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import { useToast } from 'primevue/usetoast'
 import { usePinProtection, type LockLevel } from '../composables/usePinProtection'
+import { useBackButtonClose } from '../composables/useBackButtonClose'
 import SettingsCard from './SettingsCard.vue'
 
 const PIN_LENGTH = 4
@@ -87,6 +88,14 @@ type AuthTarget = 'change' | 'disable' | 'lock-settings'
 type EditMode = 'none' | 'set' | 'auth' | 'change' | 'disable' | 'lock-settings'
 const editMode = ref<EditMode>('none')
 const authTarget = ref<AuthTarget | null>(null)
+
+// Track if any dialog is open for back button handling
+const isDialogOpen = computed(() => editMode.value !== 'none')
+
+// Close dialog on browser back button
+useBackButtonClose(isDialogOpen, 'pin-settings', () => {
+  cancelEdit()
+})
 
 // Form state
 const currentPin = ref('')

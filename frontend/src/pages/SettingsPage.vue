@@ -10,7 +10,7 @@ import VersionInfo from '../components/VersionInfo.vue'
 const router = useRouter()
 
 function goBack() {
-  router.replace('/')
+  router.back()
 }
 </script>
 
