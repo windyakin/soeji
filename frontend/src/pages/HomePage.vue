@@ -38,7 +38,7 @@ const menuItems = computed<MenuItem[]>(() => {
   items.push({
     label: "Settings",
     icon: "pi pi-cog",
-    command: () => router.replace("/settings"),
+    command: () => router.push("/settings"),
   });
 
   // Admin menu (only for admin users when auth is enabled)
@@ -46,7 +46,7 @@ const menuItems = computed<MenuItem[]>(() => {
     items.push({
       label: "Server Administration",
       icon: "pi pi-server",
-      command: () => router.replace("/admin"),
+      command: () => router.push("/admin"),
     });
   }
 
@@ -73,7 +73,7 @@ function toggleMenu(event: Event) {
 }
 
 function goToSettings() {
-  router.replace("/settings");
+  router.push("/settings");
 }
 
 // URL-synced search params
@@ -171,6 +171,9 @@ watch(
         // Image not found, redirect to home
         router.replace({ name: "home", query: route.query });
       }
+    } else {
+      // No id in route (navigated back to home) - close lightbox
+      lightboxVisible.value = false;
     }
   },
   { immediate: true }
@@ -180,23 +183,15 @@ watch(
 watch(lightboxVisible, (visible) => {
   const currentImage = images.value[currentImageIndex.value];
   if (visible && currentImage) {
-    // Open lightbox - update URL with replace (no history)
-    router.replace({
+    // Open lightbox - add to history so back button works
+    router.push({
       name: "gallery",
       params: { id: currentImage.id },
       query: route.query,
     });
   } else if (!visible && route.name === "gallery") {
-    // Close lightbox - go back to home
-    // Build query from current searchQuery/searchMode to avoid race condition
-    const newQuery: Record<string, string> = {};
-    if (searchQuery.value) {
-      newQuery.q = searchQuery.value;
-    }
-    if (searchMode.value !== "and") {
-      newQuery.mode = searchMode.value;
-    }
-    router.replace({ name: "home", query: newQuery });
+    // Close lightbox - go back in history
+    router.back();
   }
 
   // Close info panel when lightbox is closed

@@ -3,6 +3,7 @@ import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import { usePwaInstall } from '../composables/usePwaInstall'
+import { useBackButtonClose } from '../composables/useBackButtonClose'
 import SettingsCard from './SettingsCard.vue'
 
 const {
@@ -14,6 +15,11 @@ const {
   promptInstall,
   dismissIosGuide
 } = usePwaInstall()
+
+// Close dialog on browser back button
+useBackButtonClose(showIosInstallGuide, 'ios-install-guide', () => {
+  dismissIosGuide()
+})
 
 async function handleInstall() {
   await promptInstall()

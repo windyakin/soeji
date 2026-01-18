@@ -317,9 +317,4 @@ function selectSuggestion(index: number) {
 :deep(.p-inputtext) {
   width: 100%;
 }
-
-:deep(.p-selectbutton .p-togglebutton) {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
-}
 </style>

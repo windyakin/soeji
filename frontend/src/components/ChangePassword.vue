@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
@@ -8,6 +8,7 @@ import Button from 'primevue/button'
 import Message from 'primevue/message'
 import { changePassword } from '../composables/useApi'
 import { useAuth } from '../composables/useAuth'
+import { useBackButtonClose } from '../composables/useBackButtonClose'
 
 const props = defineProps<{
   visible: boolean
@@ -20,6 +21,11 @@ const emit = defineEmits<{
 const router = useRouter()
 const toast = useToast()
 const { logout } = useAuth()
+
+// Close dialog on browser back button
+useBackButtonClose(toRef(props, 'visible'), 'change-password', () => {
+  emit('update:visible', false)
+})
 
 const currentPassword = ref('')
 const newPassword = ref('')

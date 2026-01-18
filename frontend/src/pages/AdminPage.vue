@@ -6,7 +6,7 @@ import UserManagement from '../components/UserManagement.vue'
 const router = useRouter()
 
 function goBack() {
-  router.replace('/')
+  router.back()
 }
 </script>
 

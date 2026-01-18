@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Card from 'primevue/card'
@@ -19,6 +19,43 @@ const infoPopoverRef = ref<InstanceType<typeof Popover> | null>(null)
 function toggleInfoPopover(event: Event) {
   infoPopoverRef.value?.toggle(event)
 }
+
+// Keyboard-aware positioning
+const containerMarginTop = ref<string | null>(null)
+
+const containerStyle = computed(() =>
+  containerMarginTop.value ? { marginTop: containerMarginTop.value } : {}
+)
+
+function updateContainerPosition() {
+  if (window.visualViewport) {
+    const viewportHeight = window.visualViewport.height
+    const heightDiff = window.innerHeight - viewportHeight
+
+    // Adjust container position when keyboard is visible
+    if (heightDiff > 100) {
+      containerMarginTop.value = `-${heightDiff}px`
+    } else {
+      containerMarginTop.value = null
+    }
+  } else {
+    containerMarginTop.value = null
+  }
+}
+
+onMounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateContainerPosition)
+    window.visualViewport.addEventListener('scroll', updateContainerPosition)
+  }
+})
+
+onUnmounted(() => {
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', updateContainerPosition)
+    window.visualViewport.removeEventListener('scroll', updateContainerPosition)
+  }
+})
 
 const username = ref('')
 const password = ref('')
@@ -72,7 +109,7 @@ async function handleSubmit() {
       </Popover>
     </div>
 
-    <div class="login-container">
+    <div class="login-container" :style="containerStyle">
       <Card class="login-card">
         <template #title>
           <div class="login-title">
