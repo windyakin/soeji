@@ -37,7 +37,7 @@ NAI で作った PNG画像のメタデータを解析し、検索可能なライ
 | **converter** | Go製画像変換 / PNG→WebP変換・サムネイル生成 |
 | **samba** | ファイル共有 / watchディレクトリをネットワーク共有 |
 | **migrate** | DBマイグレーション専用コンテナ / 起動時にスキーマを同期 |
-| **browser-extension** | Chrome/Firefox拡張機能 / NAIから直接アップロードするボタンを追加する |
+| **browser-extension** | Chrome/Firefox拡張機能 / NAIから直接アップロードするボタンを追加する（[別リポジトリ](https://github.com/windyakin/soeji-browser-extension)に分離） |
 
 ## セットアップ
 
@@ -101,12 +101,7 @@ admin権限を持つユーザーは、WebUIから直接画像をアップロー�
 #### 3. ブラウザ拡張機能経由
 
 Chrome/Firefox用の拡張機能を使うと、NAI から直接画像をアップロードできます。
-
-1. `browser-extension/` から拡張機能をインストール
-2. 拡張機能の設定でBackend URLとAPI Key（`WATCHER_API_KEY`の値）を設定
-3. ダウンロードボタン横に表示されるアップロードボタンをクリック
-
-詳細は [browser-extension/README.md](browser-extension/README.md) を参照してください。
+詳細は [soeji-browser-extension](https://github.com/windyakin/soeji-browser-extension) リポジトリを参照してください。
 
 ## ローカル開発
 
@@ -141,7 +136,6 @@ soeji/
 │   └── src/           # 監視ロジック
 ├── converter/         # Go製画像変換サービス
 ├── cdn/               # Nginx CDN設定
-├── browser-extension/ # Chrome/Firefox拡張機能
 └── docker-compose.yml
 ```
 
