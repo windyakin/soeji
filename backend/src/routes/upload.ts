@@ -1,7 +1,18 @@
 import { Router } from "express";
+import type { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { authenticateUpload } from "../middleware/auth.js";
+import { verifyCsrf } from "../middleware/csrf.js";
 import { processUploadedImage } from "../services/imageProcessor.js";
+
+// CSRF verification that skips watcher API key requests
+function verifyCsrfUnlessWatcher(req: Request, res: Response, next: NextFunction) {
+  // Skip CSRF for watcher API key requests
+  if (req.headers["x-watcher-key"]) {
+    return next();
+  }
+  return verifyCsrf(req, res, next);
+}
 
 const router = Router();
 
@@ -70,7 +81,7 @@ router.get("/test", (_req, res) => {
  *     "code": "INVALID_FILE" | "NOT_PNG" | "PROCESSING_ERROR"
  *   }
  */
-router.post("/", upload.single("file"), async (req, res) => {
+router.post("/", verifyCsrfUnlessWatcher, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({

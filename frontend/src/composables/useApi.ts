@@ -1,6 +1,7 @@
 import { ref, computed } from "vue";
 import type { SearchResponse, SearchHit, BatchTagResponse, StatsResponse } from "../types/api";
 import { useAuth } from "./useAuth";
+import { getCsrfHeaders } from "../utils/csrf";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -11,15 +12,27 @@ async function fetchWithAuth(
 ): Promise<Response> {
   const { refreshAccessToken, authEnabled } = useAuth();
 
+  // Add CSRF header for state-changing methods
+  const method = options.method?.toUpperCase() || "GET";
+  const needsCsrf = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
+  const headers = {
+    ...options.headers,
+    ...(needsCsrf ? getCsrfHeaders() : {}),
+  };
+
   // Always include credentials for cookie-based auth
-  let response = await fetch(url, { ...options, credentials: "include" });
+  let response = await fetch(url, { ...options, headers, credentials: "include" });
 
   // If 401 and auth is enabled, try to refresh token and retry
   if (response.status === 401 && authEnabled.value) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      // Retry with refreshed cookies (preserve the signal if present)
-      response = await fetch(url, { ...options, credentials: "include" });
+      // Retry with refreshed cookies and updated CSRF token
+      const retryHeaders = {
+        ...options.headers,
+        ...(needsCsrf ? getCsrfHeaders() : {}),
+      };
+      response = await fetch(url, { ...options, headers: retryHeaders, credentials: "include" });
     }
   }
 
