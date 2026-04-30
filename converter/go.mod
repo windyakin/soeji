@@ -1,13 +1,13 @@
 module github.com/windyakin/soeji/converter
 
-go 1.23
+go 1.24
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.41.0
+	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.0
-	github.com/aws/smithy-go v1.24.0
+	github.com/aws/smithy-go v1.25.1
 	github.com/chai2010/webp v1.4.0
 	github.com/disintegration/imaging v1.6.2
 )
