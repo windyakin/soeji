@@ -102,7 +102,7 @@ services:
     restart: unless-stopped
 
   meilisearch:
-    image: getmeili/meilisearch:v1.11
+    image: getmeili/meilisearch:v1.43
     container_name: soeji-meilisearch
     environment:
       MEILI_MASTER_KEY: masterKey
