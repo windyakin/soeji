@@ -24,7 +24,7 @@ RUN npm run build -w @soeji/frontend
 RUN echo "{\"commit\":\"${COMMIT_HASH}\",\"buildTime\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > /app/frontend/dist/version.json
 
 # Production stage
-FROM nginx:1.28-alpine
+FROM nginx:1.30.1-alpine
 
 # Copy nginx configuration
 COPY frontend/nginx.conf /etc/nginx/nginx.conf
