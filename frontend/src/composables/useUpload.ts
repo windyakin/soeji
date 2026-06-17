@@ -41,6 +41,7 @@
 import { ref, computed, watch } from "vue";
 import type { UploadItem, UploadResponse } from "../types/upload";
 import { useAuth } from "./useAuth";
+import { getCsrfToken, CSRF_HEADER_NAME } from "../utils/csrf";
 
 // beforeunload event handler
 function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -310,6 +311,11 @@ export function useUpload() {
 
         xhr.open("POST", `${API_BASE}/api/upload`);
         xhr.withCredentials = true;
+        // Add CSRF token header
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+          xhr.setRequestHeader(CSRF_HEADER_NAME, csrfToken);
+        }
         xhr.send(formData);
       });
     } catch (error) {
