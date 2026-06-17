@@ -102,7 +102,16 @@ func (s *AppState) ImageHandler(w http.ResponseWriter, r *http.Request) {
 		height = &h32
 	}
 
-	quality := s.Config.WebPDefaultQuality
+	fitMode := FitModeCover
+	if fit := query.Get("fit"); fit != "" {
+		fitMode = ParseFitMode(fit)
+	}
+
+	// Determine output format from Accept header
+	outputFormat := determineFormat(r.Header.Get("Accept"))
+
+	// Get quality based on output format (can be overridden by query param)
+	quality := s.getDefaultQuality(outputFormat)
 	if q := query.Get("q"); q != "" {
 		val, err := strconv.Atoi(q)
 		if err != nil || val < 1 || val > 100 {
@@ -111,14 +120,6 @@ func (s *AppState) ImageHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		quality = val
 	}
-
-	fitMode := FitModeCover
-	if fit := query.Get("fit"); fit != "" {
-		fitMode = ParseFitMode(fit)
-	}
-
-	// Determine output format from Accept header
-	outputFormat := determineFormat(r.Header.Get("Accept"))
 
 	// Fetch image from S3
 	log.Printf("Fetching image from S3: bucket=%s, key=%s", bucket, key)
@@ -185,11 +186,32 @@ func parsePath(path string) (bucket, key string, err error) {
 	return bucket, key, nil
 }
 
+// determineFormat determines the output format based on Accept header.
+// Priority: AVIF > WebP > JPEG (compressed)
 func determineFormat(accept string) OutputFormat {
+	if strings.Contains(accept, "image/avif") {
+		return OutputFormatAVIF
+	}
 	if strings.Contains(accept, "image/webp") {
 		return OutputFormatWebP
 	}
-	return OutputFormatPNG
+	// Fallback to JPEG (compressed) instead of PNG for better compression
+	return OutputFormatJPEG
+}
+
+// getDefaultQuality returns the default quality setting for the given output format.
+// All formats use 0-100 scale where higher is better.
+func (s *AppState) getDefaultQuality(format OutputFormat) int {
+	switch format {
+	case OutputFormatAVIF:
+		return s.Config.AVIFQuality
+	case OutputFormatWebP:
+		return s.Config.WebPQuality
+	case OutputFormatJPEG:
+		return s.Config.JPEGQuality
+	default:
+		return 85
+	}
 }
 
 func (s *AppState) handleDownload(w http.ResponseWriter, r *http.Request, ctx context.Context, bucket, key string) {

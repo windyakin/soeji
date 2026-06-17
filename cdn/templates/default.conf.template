@@ -4,9 +4,11 @@ proxy_cache_path /var/cache/nginx/auth levels=1:2 keys_zone=auth_cache:10m max_s
 # 画像キャッシュ設定
 proxy_cache_path /var/cache/nginx/images levels=1:2 keys_zone=s3_cache:100m max_size=10g inactive=7d use_temp_path=off;
 
-# AcceptヘッダでWebP対応を判定し、キャッシュキーに使用
-map $http_accept $webp_suffix {
-    default   "";
+# Acceptヘッダで画像フォーマット対応を判定し、キャッシュキーに使用
+# 優先順位: AVIF > WebP > JPEG
+map $http_accept $format_suffix {
+    default   ".jpeg";
+    "~*avif"  ".avif";
     "~*webp"  ".webp";
 }
 
@@ -64,11 +66,11 @@ server {
         proxy_cache_lock_timeout 10s;
 
         # キャッシュキー（URI + クエリパラメータ + WebP判定）
-        proxy_cache_key "$uri$is_args$args$webp_suffix";
+        proxy_cache_key "$uri$is_args$args$format_suffix";
 
         # キャッシュ状態をレスポンスヘッダに追加（デバッグ用）
         add_header X-Cache-Status $upstream_cache_status;
-        add_header X-Cache-Key "$uri$is_args$args$webp_suffix";
+        add_header X-Cache-Key "$uri$is_args$args$format_suffix";
 
         # キャッシュ制御ヘッダー
         # 通常は converter からよしななヘッダーが返される
