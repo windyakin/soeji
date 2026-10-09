@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "../generated/prisma/client.js";
 import { prisma } from "../services/database.js";
 import { hashPassword } from "../services/password.js";
 import {
