@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "../generated/prisma/client.js";
 import { isAuthEnabled } from "./auth.js";
 
 type AllowedRoles = UserRole | UserRole[];

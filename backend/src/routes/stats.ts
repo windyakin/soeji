@@ -1,10 +1,9 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../services/database.js";
 import { authenticate } from "../middleware/auth.js";
 import { allRoles } from "../middleware/roleGuard.js";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // All stats endpoints require authentication (any role)
 router.use(authenticate, allRoles);

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../services/database.js";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { evaluateAndUpdateTags } from "../services/tagIndexer.js";
 import { meilisearchClient, IMAGES_INDEX_NAME } from "../services/meilisearch.js";
@@ -7,7 +7,6 @@ import { authenticate } from "../middleware/auth.js";
 import { allRoles, editorsOnly } from "../middleware/roleGuard.js";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
@@ -71,6 +70,10 @@ router.get("/", allRoles, async (req, res) => {
 router.get("/:id", allRoles, async (req, res) => {
   try {
     const { id } = req.params;
+    if (typeof id !== "string") {
+      res.status(400).json({ error: "Invalid image ID" });
+      return;
+    }
 
     const image = await prisma.image.findUnique({
       where: { id },
@@ -227,6 +230,10 @@ router.post("/tags", editorsOnly, async (req, res) => {
 router.delete("/:imageId/tags/:tagId", editorsOnly, async (req, res) => {
   try {
     const { imageId, tagId } = req.params;
+    if (typeof imageId !== "string" || typeof tagId !== "string") {
+      res.status(400).json({ error: "Invalid image or tag ID" });
+      return;
+    }
 
     // Find the ImageTag
     const imageTag = await prisma.imageTag.findUnique({
@@ -264,6 +271,10 @@ router.delete("/:imageId/tags/:tagId", editorsOnly, async (req, res) => {
 // DELETE /api/images/:id - Delete an image (admin/user only)
 router.delete("/:id", editorsOnly, async (req, res) => {
   const { id } = req.params;
+  if (typeof id !== "string") {
+    res.status(400).json({ error: "Invalid image ID" });
+    return;
+  }
 
   try {
     // Get image info first (before deleting from DB)

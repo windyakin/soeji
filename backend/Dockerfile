@@ -11,12 +11,10 @@ COPY backend/package.json ./backend/
 
 # Copy prisma schema
 COPY backend/prisma ./backend/prisma
+COPY backend/prisma.config.ts ./backend/
 
 # Install dependencies
 RUN npm ci -w @soeji/backend
-
-# Generate Prisma client
-RUN npm run db:generate -w @soeji/backend
 
 # Copy backend source files
 COPY backend/src ./backend/src
@@ -36,14 +34,8 @@ COPY package.json package-lock.json ./
 # Copy backend package.json
 COPY backend/package.json ./backend/
 
-# Copy prisma schema
-COPY backend/prisma ./backend/prisma
-
 # Install production dependencies only
 RUN npm ci -w @soeji/backend --omit=dev
-
-# Generate Prisma client
-RUN npm run db:generate -w @soeji/backend
 
 # Copy built files
 COPY --from=builder /app/backend/dist ./backend/dist

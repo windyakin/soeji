@@ -1,4 +1,4 @@
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "../generated/prisma/client.js";
 
 // User-selectable roles (excludes internal roles like 'upload')
 export type SelectableUserRole = "admin" | "user" | "guest";

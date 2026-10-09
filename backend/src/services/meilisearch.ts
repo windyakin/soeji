@@ -1,6 +1,6 @@
-import { MeiliSearch } from "meilisearch";
+import { Meilisearch } from "meilisearch";
 
-export const meilisearchClient = new MeiliSearch({
+export const meilisearchClient = new Meilisearch({
   host: process.env.MEILISEARCH_HOST || "http://localhost:7700",
   apiKey: process.env.MEILISEARCH_API_KEY || "masterKey",
 });

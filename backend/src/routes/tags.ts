@@ -1,12 +1,11 @@
 import { Router, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../services/database.js";
 import crypto from "crypto";
 import { authenticate } from "../middleware/auth.js";
 import { allRoles } from "../middleware/roleGuard.js";
 import { searchTags } from "../services/tagSearchClient.js";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // SSE client connections
 const sseClients = new Map<string, Response>();

@@ -11,6 +11,7 @@ COPY backend/package.json ./backend/
 
 # Copy prisma schema
 COPY backend/prisma ./backend/prisma
+COPY backend/prisma.config.ts ./backend/
 
 # Install dependencies
 RUN npm ci -w @soeji/backend
@@ -18,4 +19,4 @@ RUN npm ci -w @soeji/backend
 WORKDIR /app/backend
 
 # Run db push to sync schema (creates tables if not exist)
-CMD ["npx", "prisma", "db", "push", "--skip-generate"]
+CMD ["npx", "prisma", "db", "push"]

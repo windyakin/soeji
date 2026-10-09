@@ -1,7 +1,10 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import { PrismaPg } from "@prisma/adapter-pg";
 import type { ParsedPromptData } from "../types/prompt.js";
 
-export const prisma = new PrismaClient();
+export const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+});
 
 /**
  * Find or create a tag outside of a transaction, handling concurrent creation race conditions.
