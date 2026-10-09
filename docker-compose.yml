@@ -79,7 +79,7 @@ services:
     restart: unless-stopped
 
   cdn:
-    image: nginx:1.28
+    image: nginx:1.31
     container_name: soeji-cdn
     environment:
       # Backend URL for auth_request
